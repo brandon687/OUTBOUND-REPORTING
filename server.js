@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const { Client } = require('@notionhq/client');
+const axios = require('axios');
+const XLSX = require('xlsx');
 require('dotenv').config();
 
 const app = express();
@@ -74,7 +76,18 @@ async function fetchAndCacheNotionOrders(forceRefresh = false) {
 
     // Get order details and ASN
     const orderDetails = props['ORDER DETAILS']?.rich_text?.[0]?.plain_text || '';
-    const asn = props['ASN']?.rich_text?.[0]?.plain_text || '';
+
+    // Get ASN file (check if it's a file attachment)
+    let asnFile = null;
+    if (props['ASN']?.files && props['ASN'].files.length > 0) {
+      asnFile = {
+        name: props['ASN'].files[0].name,
+        url: props['ASN'].files[0].file?.url || props['ASN'].files[0].external?.url
+      };
+    } else if (props['ASN']?.rich_text?.[0]?.plain_text) {
+      // Fallback to text if not a file
+      asnFile = props['ASN'].rich_text[0].plain_text;
+    }
 
     return {
       invoice: invoiceNum ||
@@ -87,7 +100,7 @@ async function fetchAndCacheNotionOrders(forceRefresh = false) {
               props['STATUS']?.select?.name ||
               (props['Completed']?.checkbox ? 'Completed' : ''),
       orderDetails: orderDetails,
-      asn: asn,
+      asn: asnFile,
     };
   });
 
@@ -134,6 +147,69 @@ app.post('/api/orders/refresh', async (req, res) => {
     console.error('Error refreshing cache:', error);
     res.status(500).json({
       error: 'Failed to refresh cache',
+      details: error.message
+    });
+  }
+});
+
+// API endpoint to download and parse ASN file
+app.get('/api/asn/:invoice', async (req, res) => {
+  try {
+    const invoiceNum = req.params.invoice;
+    console.log(`Fetching ASN for invoice ${invoiceNum}...`);
+
+    // Find the order in cache
+    if (!cachedOrders) {
+      return res.status(503).json({ error: 'Orders not loaded yet' });
+    }
+
+    const order = cachedOrders.find(o => o.invoice === invoiceNum);
+    if (!order) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    if (!order.asn || typeof order.asn === 'string') {
+      return res.status(404).json({ error: 'No ASN file attached', asnText: order.asn });
+    }
+
+    // Download the Excel file
+    console.log(`Downloading ASN file: ${order.asn.name}`);
+    const response = await axios.get(order.asn.url, {
+      responseType: 'arraybuffer',
+      timeout: 30000
+    });
+
+    // Parse Excel file
+    const workbook = XLSX.read(response.data, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+
+    // Convert to JSON
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+    // Extract IMEI list (assuming first column contains IMEIs)
+    const imeis = [];
+    for (let i = 1; i < jsonData.length; i++) { // Skip header row
+      const row = jsonData[i];
+      if (row[0]) { // If first column has data
+        imeis.push(String(row[0]).trim());
+      }
+    }
+
+    console.log(`✓ Parsed ASN file: ${imeis.length} IMEIs found`);
+
+    res.json({
+      invoice: invoiceNum,
+      fileName: order.asn.name,
+      totalIMEIs: imeis.length,
+      imeis: imeis,
+      rawData: jsonData.slice(0, 10) // Send first 10 rows for debugging
+    });
+
+  } catch (error) {
+    console.error('Error fetching ASN:', error);
+    res.status(500).json({
+      error: 'Failed to fetch ASN file',
       details: error.message
     });
   }
