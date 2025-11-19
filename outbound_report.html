@@ -1108,11 +1108,13 @@
                                     modelCapBreakdown[key] = {
                                         model: item.model,
                                         capacity: item.capacity,
-                                        total: 0
+                                        total: 0,
+                                        totalPrice: 0
                                     };
                                 }
 
                                 modelCapBreakdown[key].total++;
+                                modelCapBreakdown[key].totalPrice += parseFloat(item.price || 0);
                                 uniqueModels.add(item.model);
                             });
 
@@ -1123,10 +1125,6 @@
                                     <td colspan="6" style="padding: 0;">
                                         <div class="expandable-details" id="details-${index}">
                                             <div style="padding: 20px;">
-                                                <div style="margin-bottom: 15px; padding: 12px; background: white; border-radius: 8px; border-left: 4px solid #667eea;">
-                                                    <span style="color: #666; font-size: 0.85rem;">Average Price:</span>
-                                                    <span style="font-size: 1.3rem; font-weight: 700; color: #667eea; margin-left: 10px;">$${avgPrice.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-                                                </div>
                                                 <button id="asn-btn-${index}" class="asn-button" onclick="downloadASN(event, '${invoice.invno}', ${index})">
                                                     📄 View ASN
                                                 </button>
@@ -1136,15 +1134,18 @@
                                                     <tr>
                                                         <th>Model</th>
                                                         <th>Quantity</th>
+                                                        <th>Avg Price</th>
                                                         <th>Grade</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     ${Object.values(modelCapBreakdown).map(item => {
+                                                        const avgPricePerModel = item.totalPrice / item.total;
                                                         return `
                                                             <tr>
                                                                 <td><strong>${item.model} ${item.capacity}</strong></td>
                                                                 <td><strong>${item.total}</strong></td>
+                                                                <td><strong style="color: #667eea;">$${avgPricePerModel.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></td>
                                                                 <td><span class="invoice-type ${invoice.invtype.toLowerCase()}">${invoice.invtype.toUpperCase()}</span></td>
                                                             </tr>
                                                         `;
