@@ -16,84 +16,124 @@ const notion = new Client({
   auth: process.env.NOTION_API_KEY,
 });
 
-// API endpoint to fetch order data from Notion
-app.get('/api/orders', async (req, res) => {
-  try {
-    const databaseId = process.env.NOTION_DATABASE_ID;
+// Cache for Notion orders
+let cachedOrders = null;
+let lastFetchTime = null;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
 
-    if (!databaseId) {
-      return res.status(500).json({ error: 'Notion database ID not configured' });
-    }
+// Function to fetch and cache Notion orders
+async function fetchAndCacheNotionOrders(forceRefresh = false) {
+  const now = Date.now();
 
-    console.log('Fetching orders from Notion...');
+  // Return cached data if still valid and not forcing refresh
+  if (!forceRefresh && cachedOrders && lastFetchTime && (now - lastFetchTime) < CACHE_DURATION) {
+    console.log(`✓ Serving cached orders (${cachedOrders.length} orders, age: ${Math.floor((now - lastFetchTime) / 1000)}s)`);
+    return cachedOrders;
+  }
 
-    // Fetch all pages (handle pagination)
-    let allResults = [];
-    let hasMore = true;
-    let startCursor = undefined;
+  console.log('Fetching orders from Notion...');
+  const databaseId = process.env.NOTION_DATABASE_ID;
 
-    while (hasMore) {
-      const response = await notion.databases.query({
-        database_id: databaseId,
-        page_size: 100,
-        start_cursor: startCursor,
-      });
+  if (!databaseId) {
+    throw new Error('Notion database ID not configured');
+  }
 
-      allResults = allResults.concat(response.results);
-      hasMore = response.has_more;
-      startCursor = response.next_cursor;
-    }
+  // Fetch all pages (handle pagination)
+  let allResults = [];
+  let hasMore = true;
+  let startCursor = undefined;
 
-    const response = { results: allResults };
-
-    // Transform Notion data to our format
-    const orders = response.results.map(page => {
-      const props = page.properties;
-
-      // Log first page properties to debug field names
-      if (response.results.indexOf(page) === 0) {
-        console.log('Available fields:', Object.keys(props));
-        console.log('Invoice # field:', JSON.stringify(props['Invoice #'], null, 2));
-        console.log('INVOICE - CUSTOMER field:', JSON.stringify(props['INVOICE - CUSTOMER'], null, 2));
-      }
-
-      // Parse INVOICE - CUSTOMER field which contains "InvoiceNum - CustomerName"
-      const invoiceCustomerText = props['INVOICE - CUSTOMER']?.title?.[0]?.text?.content || '';
-      const customerParts = invoiceCustomerText.split(' - ');
-      const invoiceNum = customerParts[0]?.trim() || '';
-      const customerName = customerParts.slice(1).join(' - ').trim() || '';
-
-      // Parse INVOICE - QTY field which contains "InvoiceNum - Quantity"
-      const invoiceQtyText = props['INVOICE - QTY']?.rich_text?.[0]?.plain_text || '';
-      const qtyParts = invoiceQtyText.split(' - ');
-      const quantity = qtyParts[1] ? parseInt(qtyParts[1].trim()) : 0;
-
-      // Get order details and ASN
-      const orderDetails = props['ORDER DETAILS']?.rich_text?.[0]?.plain_text || '';
-      const asn = props['ASN']?.rich_text?.[0]?.plain_text || '';
-
-      return {
-        invoice: invoiceNum ||
-                 props['Invoice #']?.number ||
-                 props['Invoice #']?.rich_text?.[0]?.plain_text || '',
-        customer: customerName,
-        tracking: props['TRACKING']?.rich_text?.[0]?.plain_text || '',
-        quantity: quantity,
-        status: props['Order type']?.select?.name ||
-                props['STATUS']?.select?.name ||
-                (props['Completed']?.checkbox ? 'Completed' : ''),
-        orderDetails: orderDetails,
-        asn: asn,
-      };
+  while (hasMore) {
+    const response = await notion.databases.query({
+      database_id: databaseId,
+      page_size: 100,
+      start_cursor: startCursor,
     });
 
-    console.log(`Successfully fetched ${orders.length} orders`);
-    res.json({ orders });
+    allResults = allResults.concat(response.results);
+    hasMore = response.has_more;
+    startCursor = response.next_cursor;
 
+    console.log(`  Fetched ${allResults.length} orders so far...`);
+  }
+
+  // Transform Notion data to our format
+  const orders = allResults.map(page => {
+    const props = page.properties;
+
+    // Parse INVOICE - CUSTOMER field which contains "InvoiceNum - CustomerName"
+    const invoiceCustomerText = props['INVOICE - CUSTOMER']?.title?.[0]?.text?.content || '';
+    const customerParts = invoiceCustomerText.split(' - ');
+    const invoiceNum = customerParts[0]?.trim() || '';
+    const customerName = customerParts.slice(1).join(' - ').trim() || '';
+
+    // Parse INVOICE - QTY field which contains "InvoiceNum - Quantity"
+    const invoiceQtyText = props['INVOICE - QTY']?.rich_text?.[0]?.plain_text || '';
+    const qtyParts = invoiceQtyText.split(' - ');
+    const quantity = qtyParts[1] ? parseInt(qtyParts[1].trim()) : 0;
+
+    // Get order details and ASN
+    const orderDetails = props['ORDER DETAILS']?.rich_text?.[0]?.plain_text || '';
+    const asn = props['ASN']?.rich_text?.[0]?.plain_text || '';
+
+    return {
+      invoice: invoiceNum ||
+               props['Invoice #']?.number ||
+               props['Invoice #']?.rich_text?.[0]?.plain_text || '',
+      customer: customerName,
+      tracking: props['TRACKING']?.rich_text?.[0]?.plain_text || '',
+      quantity: quantity,
+      status: props['Order type']?.select?.name ||
+              props['STATUS']?.select?.name ||
+              (props['Completed']?.checkbox ? 'Completed' : ''),
+      orderDetails: orderDetails,
+      asn: asn,
+    };
+  });
+
+  console.log(`✓ Successfully fetched and cached ${orders.length} orders`);
+
+  // Update cache
+  cachedOrders = orders;
+  lastFetchTime = now;
+
+  return orders;
+}
+
+// API endpoint to fetch order data from Notion (uses cache)
+app.get('/api/orders', async (req, res) => {
+  try {
+    const forceRefresh = req.query.refresh === 'true';
+    const orders = await fetchAndCacheNotionOrders(forceRefresh);
+
+    res.json({
+      orders,
+      cached: !forceRefresh && cachedOrders !== null,
+      cacheAge: lastFetchTime ? Math.floor((Date.now() - lastFetchTime) / 1000) : 0
+    });
   } catch (error) {
     console.error('Error fetching from Notion:', error);
     res.status(500).json({
       error: 'Failed to fetch orders from Notion',
+      details: error.message
+    });
+  }
+});
+
+// API endpoint to force refresh cache
+app.post('/api/orders/refresh', async (req, res) => {
+  try {
+    console.log('Manual cache refresh requested');
+    const orders = await fetchAndCacheNotionOrders(true);
+    res.json({
+      success: true,
+      orders,
+      message: `Refreshed ${orders.length} orders`
+    });
+  } catch (error) {
+    console.error('Error refreshing cache:', error);
+    res.status(500).json({
+      error: 'Failed to refresh cache',
       details: error.message
     });
   }
@@ -109,8 +149,18 @@ app.get('/', (req, res) => {
   res.sendFile(__dirname + '/outbound_report.html');
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📊 Dashboard: http://localhost:${PORT}`);
   console.log(`🔗 API: http://localhost:${PORT}/api/orders`);
+  console.log(`🔄 Cache duration: ${CACHE_DURATION / 1000} seconds`);
+
+  // Pre-warm cache on startup
+  console.log('🔥 Pre-warming cache...');
+  try {
+    await fetchAndCacheNotionOrders();
+    console.log('✓ Cache pre-warmed successfully');
+  } catch (error) {
+    console.error('❌ Failed to pre-warm cache:', error.message);
+  }
 });

@@ -529,6 +529,7 @@
         <div class="report-container" id="reportContainer">
             <div class="actions">
                 <button class="btn btn-secondary" onclick="resetReport()">📤 Upload New File</button>
+                <button class="btn btn-secondary" onclick="refreshNotionData()">🔄 Refresh Notion Data</button>
                 <button class="btn btn-primary" onclick="window.print()">🖨️ Print Report</button>
             </div>
 
@@ -569,11 +570,12 @@
         let notionOrders = [];
 
         // Fetch Notion orders on page load
-        async function fetchNotionOrders() {
+        async function fetchNotionOrders(forceRefresh = false) {
             try {
-                console.log('Fetching Notion orders with cache-busting...');
-                const timestamp = new Date().getTime();
-                const response = await fetch(`/api/orders?t=${timestamp}`, {
+                const url = forceRefresh ? '/api/orders?refresh=true' : '/api/orders';
+                console.log('Fetching Notion orders' + (forceRefresh ? ' (forcing refresh)' : ' (using cache)') + '...');
+
+                const response = await fetch(url, {
                     method: 'GET',
                     cache: 'no-cache',
                     headers: {
@@ -584,20 +586,32 @@
                 });
 
                 console.log('Response status:', response.status);
-                console.log('Response ok:', response.ok);
 
                 if (response.ok) {
                     const data = await response.json();
                     notionOrders = data.orders;
+
                     console.log('✓ Loaded', notionOrders.length, 'orders from Notion');
+                    console.log('✓ Cached:', data.cached, '| Age:', data.cacheAge, 'seconds');
                     console.log('✓ First 3 invoices:', notionOrders.slice(0, 3).map(o => `${o.invoice} - ${o.customer}`));
-                    console.log('✓ Sample invoice 20997:', notionOrders.find(o => o.invoice === '20997'));
+
+                    const sample = notionOrders.find(o => o.invoice === '20997');
+                    if (sample) {
+                        console.log('✓ Sample invoice 20997:', sample.customer);
+                    }
                 } else {
                     console.error('❌ Failed to fetch Notion orders:', response.status, response.statusText);
                 }
             } catch (error) {
                 console.error('❌ Error fetching Notion orders:', error);
             }
+        }
+
+        // Refresh Notion data manually
+        async function refreshNotionData() {
+            console.log('🔄 Manually refreshing Notion data...');
+            await fetchNotionOrders(true);
+            alert('✓ Notion data refreshed! Upload your CSV to see updated customer names.');
         }
 
         // Load Notion data on startup
