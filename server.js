@@ -36,12 +36,29 @@ app.get('/api/orders', async (req, res) => {
     const orders = response.results.map(page => {
       const props = page.properties;
 
+      // Log first page properties to debug field names
+      if (response.results.indexOf(page) === 0) {
+        console.log('Available fields:', Object.keys(props));
+        console.log('Invoice # field:', JSON.stringify(props['Invoice #'], null, 2));
+        console.log('INVOICE - CUSTOMER field:', JSON.stringify(props['INVOICE - CUSTOMER'], null, 2));
+      }
+
+      // Parse INVOICE - CUSTOMER field which contains "InvoiceNum - CustomerName"
+      const invoiceCustomerText = props['INVOICE - CUSTOMER']?.title?.[0]?.text?.content || '';
+      const parts = invoiceCustomerText.split(' - ');
+      const invoiceNum = parts[0]?.trim() || '';
+      const customerName = parts.slice(1).join(' - ').trim() || '';
+
       return {
-        invoice: props['Invoice #']?.number || props['Invoice #']?.title?.[0]?.plain_text || '',
-        customer: props['INVOICE - CUSTOMER']?.rich_text?.[0]?.plain_text || '',
+        invoice: invoiceNum ||
+                 props['Invoice #']?.number ||
+                 props['Invoice #']?.rich_text?.[0]?.plain_text || '',
+        customer: customerName,
         tracking: props['TRACKING']?.rich_text?.[0]?.plain_text || '',
-        quantity: props['QUANTITY HERE']?.number || 0,
-        status: props['Order Type']?.select?.name || props['Status']?.select?.name || '',
+        quantity: props['INVOICE - QTY']?.number || 0,
+        status: props['Order type']?.select?.name ||
+                props['STATUS']?.select?.name ||
+                (props['Completed']?.checkbox ? 'Completed' : ''),
       };
     });
 
