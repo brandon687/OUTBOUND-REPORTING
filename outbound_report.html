@@ -560,32 +560,6 @@
                     </div>
                     <div id="invoiceOrders"></div>
                 </div>
-
-                <div class="chart-card">
-                    <div class="chart-title">
-                        <span class="chart-title-icon">🔒</span>
-                        Lock Status Report
-                    </div>
-                    <div class="bar-chart" id="lockStatusChart"></div>
-                </div>
-
-                <div class="chart-card">
-                    <div class="chart-title">
-                        <span class="chart-title-icon">⭐</span>
-                        Grade Distribution
-                    </div>
-                    <div class="bar-chart" id="gradeChart"></div>
-                </div>
-            </div>
-
-            <div class="charts-grid">
-                <div class="chart-card">
-                    <div class="chart-title">
-                        <span class="chart-title-icon">🎨</span>
-                        Color Distribution
-                    </div>
-                    <div class="bar-chart" id="colorChart"></div>
-                </div>
             </div>
         </div>
     </div>
@@ -695,9 +669,6 @@
                 generateSummaryCards();
                 generateModelCapacityTable();
                 generateInvoiceOrders();
-                generateColorChart();
-                generateLockStatusChart();
-                generateGradeChart();
             } catch (error) {
                 console.error('Error generating report:', error);
                 alert('Error generating report: ' + error.message);
@@ -891,6 +862,10 @@
             }
 
             // Match invoices with Notion orders
+            console.log('Starting invoice matching...');
+            console.log('First CSV invoice:', sorted[0]?.invno);
+            console.log('First 5 Notion invoices:', notionOrders.slice(0, 5).map(o => o.invoice));
+
             sorted.forEach(invoice => {
                 // Clean and normalize invoice numbers for comparison
                 const csvInvoice = String(invoice.invno).trim();
@@ -903,11 +878,14 @@
                     invoice.customer = notionOrder.customer;
                     invoice.tracking = notionOrder.tracking;
                     invoice.orderStatus = notionOrder.status;
+                    console.log('✓ Matched invoice:', csvInvoice, '→', notionOrder.customer);
                 } else {
                     // Debug: Log unmatched invoices
-                    console.log('No match found for invoice:', csvInvoice);
+                    console.log('✗ No match for invoice:', csvInvoice);
                 }
             });
+
+            console.log('Invoice matching complete.');
 
             const tableHTML = `
                 <table class="invoice-main-table">
