@@ -455,28 +455,69 @@
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
+            table-layout: fixed;
         }
 
         .invoice-main-table th {
             background: #667eea;
             color: white;
-            padding: 12px;
+            padding: 12px 8px;
             text-align: left;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             text-transform: uppercase;
+            font-weight: 600;
+            white-space: nowrap;
         }
 
+        .invoice-main-table th:nth-child(1) { width: 8%; } /* Invoice */
+        .invoice-main-table th:nth-child(2) { width: 20%; } /* Customer */
+        .invoice-main-table th:nth-child(3) { width: 10%; } /* Total Units */
+        .invoice-main-table th:nth-child(4) { width: 14%; } /* Invoice Total */
+        .invoice-main-table th:nth-child(5) { width: 12%; } /* Avg Price */
+        .invoice-main-table th:nth-child(6) { width: 12%; } /* Inv Type */
+        .invoice-main-table th:nth-child(7) { width: 14%; } /* Tracking */
+        .invoice-main-table th:nth-child(8) { width: 10%; } /* Expand */
+
         .invoice-main-table td {
-            padding: 15px 12px;
+            padding: 15px 8px;
             border-bottom: 1px solid #eee;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .invoice-main-table td:nth-child(2) {
+            white-space: normal;
+            word-wrap: break-word;
+            max-width: 0;
         }
 
         .invoice-main-table tbody tr {
             cursor: pointer;
             transition: background 0.2s ease;
+            position: relative;
         }
 
         .invoice-main-table tbody tr:hover {
+            background: #f8f9ff;
+        }
+
+        .invoice-main-table tbody tr::after {
+            content: '▼';
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.8rem;
+            color: #667eea;
+            transition: transform 0.3s ease;
+        }
+
+        .invoice-main-table tbody tr.expanded::after {
+            transform: translateY(-50%) rotate(180deg);
+        }
+
+        .details-row {
             background: #f8f9ff;
         }
 
@@ -484,10 +525,11 @@
             max-height: 0;
             overflow: hidden;
             transition: max-height 0.3s ease;
+            background: #f8f9ff;
         }
 
         .expandable-details.expanded {
-            max-height: 1000px;
+            max-height: 2000px;
         }
 
         .details-table {
@@ -511,20 +553,23 @@
 
         .asn-button {
             display: inline-block;
-            padding: 6px 12px;
+            padding: 8px 16px;
             background: #667eea;
             color: white;
             border: none;
-            border-radius: 6px;
-            font-size: 0.8rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
         }
 
         .asn-button:hover {
             background: #764ba2;
-            transform: translateY(-1px);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
         }
 
         .asn-button.loading {
@@ -1009,6 +1054,7 @@
                             <th>Avg Price</th>
                             <th>Inv Type</th>
                             <th>Tracking</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1034,12 +1080,14 @@
                             const avgPrice = invoice.total / invoice.units;
 
                             const detailsTable = `
-                                <tr>
-                                    <td colspan="7">
+                                <tr class="details-row">
+                                    <td colspan="8" style="padding: 0;">
                                         <div class="expandable-details" id="details-${index}">
-                                            <button id="asn-btn-${index}" class="asn-button" onclick="downloadASN(event, '${invoice.invno}', ${index})">
-                                                📄 View ASN
-                                            </button>
+                                            <div style="padding: 20px;">
+                                                <button id="asn-btn-${index}" class="asn-button" onclick="downloadASN(event, '${invoice.invno}', ${index})">
+                                                    📄 View ASN
+                                                </button>
+                                            </div>
                                             <table class="details-table">
                                                 <thead>
                                                     <tr>
@@ -1066,14 +1114,15 @@
                             `;
 
                             return `
-                                <tr onclick="toggleInvoiceDetails(${index})">
+                                <tr class="invoice-row" id="row-${index}" onclick="toggleInvoiceDetails(${index})">
                                     <td><strong>${invoice.invno}</strong></td>
-                                    <td>${invoice.customer || '<span style="color: #999;">-</span>'}</td>
+                                    <td title="${invoice.customer || 'Unknown'}">${invoice.customer || '<span style="color: #999;">-</span>'}</td>
                                     <td>${invoice.units}</td>
                                     <td><strong>$${invoice.total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></td>
                                     <td>$${avgPrice.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                                     <td><span class="invoice-type ${invoice.invtype.toLowerCase()}">${invoice.invtype.toUpperCase()}</span></td>
-                                    <td>${invoice.tracking || '<span style="color: #999;">-</span>'}</td>
+                                    <td title="${invoice.tracking || 'No tracking'}">${invoice.tracking || '<span style="color: #999;">-</span>'}</td>
+                                    <td style="text-align: center; padding-right: 25px;"></td>
                                 </tr>
                                 ${detailsTable}
                             `;
@@ -1087,7 +1136,10 @@
 
         function toggleInvoiceDetails(index) {
             const detailsElement = document.getElementById(`details-${index}`);
+            const rowElement = document.getElementById(`row-${index}`);
+
             detailsElement.classList.toggle('expanded');
+            rowElement.classList.toggle('expanded');
         }
 
         async function downloadASN(event, invoiceNum, index) {
