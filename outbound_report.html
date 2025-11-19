@@ -465,16 +465,25 @@
             table-layout: fixed;
         }
 
+        .invoice-main-table thead {
+            border-bottom: 3px solid #764ba2;
+        }
+
         .invoice-main-table th {
             background: #667eea;
             color: white;
-            padding: 12px 8px;
+            padding: 16px 8px;
             text-align: left;
-            font-size: 0.75rem;
+            font-size: 0.8rem;
             text-transform: uppercase;
             font-weight: 600;
             white-space: nowrap;
             vertical-align: middle;
+            letter-spacing: 0.5px;
+        }
+
+        .invoice-main-table tbody tr:first-child td {
+            padding-top: 24px;
         }
 
         .invoice-main-table th:nth-child(1) { width: 8%; } /* Invoice */
@@ -487,7 +496,7 @@
         .invoice-main-table th:nth-child(8) { width: 8%; } /* Expand */
 
         .invoice-main-table td {
-            padding: 15px 8px;
+            padding: 18px 8px;
             border-bottom: 1px solid #eee;
             vertical-align: middle;
         }
@@ -513,17 +522,17 @@
             overflow: visible;
         }
 
-        .invoice-main-table tbody tr {
+        .invoice-main-table tbody tr.invoice-row {
             cursor: pointer;
             transition: background 0.2s ease;
             position: relative;
         }
 
-        .invoice-main-table tbody tr:hover {
+        .invoice-main-table tbody tr.invoice-row:hover {
             background: #f8f9ff;
         }
 
-        .invoice-main-table tbody tr::after {
+        .invoice-main-table tbody tr.invoice-row::after {
             content: '▼';
             position: absolute;
             right: 20px;
@@ -534,8 +543,16 @@
             transition: transform 0.3s ease;
         }
 
-        .invoice-main-table tbody tr.expanded::after {
+        .invoice-main-table tbody tr.invoice-row.expanded::after {
             transform: translateY(-50%) rotate(180deg);
+        }
+
+        .invoice-main-table tbody tr.details-row {
+            cursor: default;
+        }
+
+        .invoice-main-table tbody tr.details-row:hover {
+            background: transparent;
         }
 
         .details-row {
