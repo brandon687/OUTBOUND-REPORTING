@@ -1084,6 +1084,28 @@
 
             console.log(`Invoice matching complete. Matched: ${matchedCount}, Unmatched: ${unmatchedCount}`);
 
+            // iPhone model hierarchy (newest to oldest for tiebreaker sorting)
+            // Define this ONCE outside the loop to avoid recreating for every invoice
+            const modelHierarchy = [
+                '17 PRO MAX', '17 PRO', '16E',
+                '16 PRO MAX (PSIM)', '16 PRO MAX', '16 PRO (PSIM)', '16 PRO',
+                '16 PLUS (PSIM)', '16 PLUS', '16 (PSIM)', '16',
+                '15 PRO MAX (PSIM)', '15 PRO MAX', '15 PRO (PSIM)', '15 PRO',
+                '15 PLUS (PSIM)', '15 PLUS', '15 (PSIM)', '15',
+                '14 PRO MAX (PSIM)', '14 PRO MAX', '14 PRO (PSIM)', '14 PRO',
+                '14 PLUS (PSIM)', '14 PLUS', '14 (PSIM)', '14',
+                '13 PRO MAX', '13 PRO', '13 MINI',
+                '12 PRO MAX', '12 PRO', '12 MINI',
+                '11 PRO MAX', '11 PRO',
+                '13', '12', '11', 'XS MAX', 'XS', 'XR', 'X',
+                'SE 3', 'SE 2', 'SE', '8 PLUS', '8', '7 PLUS', '7', '6S', '6 PLUS', '6'
+            ];
+
+            const getModelPriority = (modelName) => {
+                const index = modelHierarchy.findIndex(m => modelName.toUpperCase().includes(m));
+                return index === -1 ? 999 : index; // Unknown models go to end
+            };
+
             const tableHTML = `
                 <table class="invoice-main-table">
                     <thead>
@@ -1119,27 +1141,6 @@
                             });
 
                             const avgPrice = invoice.total / invoice.units;
-
-                            // iPhone model hierarchy (newest to oldest for tiebreaker sorting)
-                            const modelHierarchy = [
-                                '17 PRO MAX', '17 PRO', '16E',
-                                '16 PRO MAX (PSIM)', '16 PRO MAX', '16 PRO (PSIM)', '16 PRO',
-                                '16 PLUS (PSIM)', '16 PLUS', '16 (PSIM)', '16',
-                                '15 PRO MAX (PSIM)', '15 PRO MAX', '15 PRO (PSIM)', '15 PRO',
-                                '15 PLUS (PSIM)', '15 PLUS', '15 (PSIM)', '15',
-                                '14 PRO MAX (PSIM)', '14 PRO MAX', '14 PRO (PSIM)', '14 PRO',
-                                '14 PLUS (PSIM)', '14 PLUS', '14 (PSIM)', '14',
-                                '13 PRO MAX', '13 PRO', '13 MINI',
-                                '12 PRO MAX', '12 PRO', '12 MINI',
-                                '11 PRO MAX', '11 PRO',
-                                '13', '12', '11', 'XS MAX', 'XS', 'XR', 'X',
-                                'SE 3', 'SE 2', 'SE', '8 PLUS', '8', '7 PLUS', '7', '6S', '6 PLUS', '6'
-                            ];
-
-                            const getModelPriority = (modelName) => {
-                                const index = modelHierarchy.findIndex(m => modelName.toUpperCase().includes(m));
-                                return index === -1 ? 999 : index; // Unknown models go to end
-                            };
 
                             const detailsTable = `
                                 <tr class="details-row">
