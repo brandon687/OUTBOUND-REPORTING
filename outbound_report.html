@@ -486,14 +486,12 @@
             padding-top: 24px;
         }
 
-        .invoice-main-table th:nth-child(1) { width: 8%; } /* Invoice */
-        .invoice-main-table th:nth-child(2) { width: 18%; } /* Customer */
-        .invoice-main-table th:nth-child(3) { width: 10%; } /* Total Units */
-        .invoice-main-table th:nth-child(4) { width: 14%; } /* Invoice Total */
-        .invoice-main-table th:nth-child(5) { width: 11%; } /* Avg Price */
-        .invoice-main-table th:nth-child(6) { width: 13%; } /* Inv Type */
-        .invoice-main-table th:nth-child(7) { width: 18%; } /* Tracking */
-        .invoice-main-table th:nth-child(8) { width: 8%; } /* Expand */
+        .invoice-main-table th:nth-child(1) { width: 10%; } /* Invoice */
+        .invoice-main-table th:nth-child(2) { width: 25%; } /* Customer */
+        .invoice-main-table th:nth-child(3) { width: 20%; } /* Total Invoice */
+        .invoice-main-table th:nth-child(4) { width: 15%; } /* Inv Type */
+        .invoice-main-table th:nth-child(5) { width: 20%; } /* Tracking */
+        .invoice-main-table th:nth-child(6) { width: 10%; } /* Expand */
 
         .invoice-main-table td {
             padding: 18px 8px;
@@ -509,7 +507,7 @@
         }
 
         /* Tracking column - allow text wrapping */
-        .invoice-main-table td:nth-child(7) {
+        .invoice-main-table td:nth-child(5) {
             white-space: normal;
             word-wrap: break-word;
             overflow-wrap: break-word;
@@ -517,7 +515,7 @@
         }
 
         /* Invoice Type column - prevent badge truncation */
-        .invoice-main-table td:nth-child(6) {
+        .invoice-main-table td:nth-child(4) {
             white-space: nowrap;
             overflow: visible;
         }
@@ -1092,9 +1090,7 @@
                         <tr>
                             <th>Invoice</th>
                             <th>Customer</th>
-                            <th>Total Units</th>
-                            <th>Invoice Total</th>
-                            <th>Avg Price</th>
+                            <th>Total Invoice</th>
                             <th>Inv Type</th>
                             <th>Tracking</th>
                             <th></th>
@@ -1124,9 +1120,13 @@
 
                             const detailsTable = `
                                 <tr class="details-row">
-                                    <td colspan="8" style="padding: 0;">
+                                    <td colspan="6" style="padding: 0;">
                                         <div class="expandable-details" id="details-${index}">
                                             <div style="padding: 20px;">
+                                                <div style="margin-bottom: 15px; padding: 12px; background: white; border-radius: 8px; border-left: 4px solid #667eea;">
+                                                    <span style="color: #666; font-size: 0.85rem;">Average Price:</span>
+                                                    <span style="font-size: 1.3rem; font-weight: 700; color: #667eea; margin-left: 10px;">$${avgPrice.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                                                </div>
                                                 <button id="asn-btn-${index}" class="asn-button" onclick="downloadASN(event, '${invoice.invno}', ${index})">
                                                     📄 View ASN
                                                 </button>
@@ -1160,9 +1160,7 @@
                                 <tr class="invoice-row" id="row-${index}" onclick="toggleInvoiceDetails(${index})">
                                     <td><strong>${invoice.invno}</strong></td>
                                     <td title="${invoice.customer || 'Unknown'}">${invoice.customer ? invoice.customer : '<span style="color: #999;">-</span>'}</td>
-                                    <td>${invoice.units}</td>
                                     <td><strong>$${invoice.total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></td>
-                                    <td>$${avgPrice.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                                     <td><span class="invoice-type ${invoice.invtype.toLowerCase().replace(/\s+/g, ' ')}">${invoice.invtype.toUpperCase()}</span></td>
                                     <td title="${invoice.tracking || 'No tracking'}">${invoice.tracking ? invoice.tracking : '<span style="color: #999;">-</span>'}</td>
                                     <td style="text-align: center; padding-right: 25px;"></td>
