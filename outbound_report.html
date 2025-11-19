@@ -238,11 +238,14 @@
 
         .invoice-type {
             display: inline-block;
-            padding: 8px 16px;
+            padding: 6px 12px;
             border-radius: 20px;
             font-weight: 600;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             text-transform: uppercase;
+            white-space: nowrap;
+            text-align: center;
+            min-width: fit-content;
         }
 
         .invoice-type.raw { background: #ffeaa7; color: #d63031; }
@@ -250,6 +253,10 @@
         .invoice-type.ab { background: #74b9ff; color: #0984e3; }
         .invoice-type.fallout { background: #fab1a0; color: #d63031; }
         .invoice-type.mixed { background: #dfe6e9; color: #2d3436; }
+
+        /* Handle space-separated grade types */
+        .invoice-type.a.grade { background: #55efc4; color: #00b894; }
+        .invoice-type.ab.grade { background: #74b9ff; color: #0984e3; }
 
         .invoice-stats {
             display: grid;
@@ -467,29 +474,43 @@
             text-transform: uppercase;
             font-weight: 600;
             white-space: nowrap;
+            vertical-align: middle;
         }
 
         .invoice-main-table th:nth-child(1) { width: 8%; } /* Invoice */
-        .invoice-main-table th:nth-child(2) { width: 20%; } /* Customer */
+        .invoice-main-table th:nth-child(2) { width: 18%; } /* Customer */
         .invoice-main-table th:nth-child(3) { width: 10%; } /* Total Units */
         .invoice-main-table th:nth-child(4) { width: 14%; } /* Invoice Total */
-        .invoice-main-table th:nth-child(5) { width: 12%; } /* Avg Price */
-        .invoice-main-table th:nth-child(6) { width: 12%; } /* Inv Type */
-        .invoice-main-table th:nth-child(7) { width: 14%; } /* Tracking */
-        .invoice-main-table th:nth-child(8) { width: 10%; } /* Expand */
+        .invoice-main-table th:nth-child(5) { width: 11%; } /* Avg Price */
+        .invoice-main-table th:nth-child(6) { width: 13%; } /* Inv Type */
+        .invoice-main-table th:nth-child(7) { width: 18%; } /* Tracking */
+        .invoice-main-table th:nth-child(8) { width: 8%; } /* Expand */
 
         .invoice-main-table td {
             padding: 15px 8px;
             border-bottom: 1px solid #eee;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            vertical-align: middle;
         }
 
+        /* Customer column - allow text wrapping */
         .invoice-main-table td:nth-child(2) {
             white-space: normal;
             word-wrap: break-word;
-            max-width: 0;
+            overflow-wrap: break-word;
+        }
+
+        /* Tracking column - allow text wrapping */
+        .invoice-main-table td:nth-child(7) {
+            white-space: normal;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            font-size: 0.85rem;
+        }
+
+        /* Invoice Type column - prevent badge truncation */
+        .invoice-main-table td:nth-child(6) {
+            white-space: nowrap;
+            overflow: visible;
         }
 
         .invoice-main-table tbody tr {
@@ -1022,6 +1043,9 @@
             console.log('First CSV invoice:', sorted[0]?.invno);
             console.log('First 5 Notion invoices:', notionOrders.slice(0, 5).map(o => o.invoice));
 
+            let matchedCount = 0;
+            let unmatchedCount = 0;
+
             sorted.forEach(invoice => {
                 // Clean and normalize invoice numbers for comparison
                 const csvInvoice = String(invoice.invno).trim();
@@ -1034,14 +1058,16 @@
                     invoice.customer = notionOrder.customer;
                     invoice.tracking = notionOrder.tracking;
                     invoice.orderStatus = notionOrder.status;
-                    console.log('✓ Matched invoice:', csvInvoice, '→', notionOrder.customer);
+                    console.log('✓ Matched invoice:', csvInvoice, '→ Customer:', notionOrder.customer, '| Tracking:', notionOrder.tracking);
+                    matchedCount++;
                 } else {
                     // Debug: Log unmatched invoices
                     console.log('✗ No match for invoice:', csvInvoice);
+                    unmatchedCount++;
                 }
             });
 
-            console.log('Invoice matching complete.');
+            console.log(`Invoice matching complete. Matched: ${matchedCount}, Unmatched: ${unmatchedCount}`);
 
             const tableHTML = `
                 <table class="invoice-main-table">
@@ -1116,12 +1142,12 @@
                             return `
                                 <tr class="invoice-row" id="row-${index}" onclick="toggleInvoiceDetails(${index})">
                                     <td><strong>${invoice.invno}</strong></td>
-                                    <td title="${invoice.customer || 'Unknown'}">${invoice.customer || '<span style="color: #999;">-</span>'}</td>
+                                    <td title="${invoice.customer || 'Unknown'}">${invoice.customer ? invoice.customer : '<span style="color: #999;">-</span>'}</td>
                                     <td>${invoice.units}</td>
                                     <td><strong>$${invoice.total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></td>
                                     <td>$${avgPrice.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                                    <td><span class="invoice-type ${invoice.invtype.toLowerCase()}">${invoice.invtype.toUpperCase()}</span></td>
-                                    <td title="${invoice.tracking || 'No tracking'}">${invoice.tracking || '<span style="color: #999;">-</span>'}</td>
+                                    <td><span class="invoice-type ${invoice.invtype.toLowerCase().replace(/\s+/g, ' ')}">${invoice.invtype.toUpperCase()}</span></td>
+                                    <td title="${invoice.tracking || 'No tracking'}">${invoice.tracking ? invoice.tracking : '<span style="color: #999;">-</span>'}</td>
                                     <td style="text-align: center; padding-right: 25px;"></td>
                                 </tr>
                                 ${detailsTable}
