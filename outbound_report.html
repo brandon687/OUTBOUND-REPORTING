@@ -1139,17 +1139,19 @@
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    ${Object.values(modelCapBreakdown).map(item => {
-                                                        const avgPricePerModel = item.totalPrice / item.total;
-                                                        return `
-                                                            <tr>
-                                                                <td><strong>${item.model} ${item.capacity}</strong></td>
-                                                                <td><strong>${item.total}</strong></td>
-                                                                <td><strong style="color: #667eea;">$${avgPricePerModel.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></td>
-                                                                <td><span class="invoice-type ${invoice.invtype.toLowerCase()}">${invoice.invtype.toUpperCase()}</span></td>
-                                                            </tr>
-                                                        `;
-                                                    }).join('')}
+                                                    ${Object.values(modelCapBreakdown)
+                                                        .sort((a, b) => b.total - a.total)
+                                                        .map(item => {
+                                                            const avgPricePerModel = item.totalPrice / item.total;
+                                                            return `
+                                                                <tr>
+                                                                    <td><strong>${item.model} ${item.capacity}</strong></td>
+                                                                    <td><strong>${item.total}</strong></td>
+                                                                    <td><strong style="color: #667eea;">$${avgPricePerModel.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></td>
+                                                                    <td><span class="invoice-type ${invoice.invtype.toLowerCase()}">${invoice.invtype.toUpperCase()}</span></td>
+                                                                </tr>
+                                                            `;
+                                                        }).join('')}
                                                 </tbody>
                                             </table>
                                         </div>
