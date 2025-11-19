@@ -1045,7 +1045,7 @@
                 invoiceMap[invno].items.push(row);
             });
 
-            const sorted = Object.values(invoiceMap).sort((a, b) => b.total - a.total);
+            const sorted = Object.values(invoiceMap).sort((a, b) => parseInt(b.invno) - parseInt(a.invno));
 
             // Debug: Log sample Notion data
             if (notionOrders.length > 0) {
