@@ -884,13 +884,28 @@
 
             const sorted = Object.values(invoiceMap).sort((a, b) => b.total - a.total);
 
+            // Debug: Log sample Notion data
+            if (notionOrders.length > 0) {
+                console.log('Sample Notion order:', notionOrders[0]);
+                console.log('Total Notion orders:', notionOrders.length);
+            }
+
             // Match invoices with Notion orders
             sorted.forEach(invoice => {
-                const notionOrder = notionOrders.find(order => String(order.invoice) === String(invoice.invno));
+                // Clean and normalize invoice numbers for comparison
+                const csvInvoice = String(invoice.invno).trim();
+                const notionOrder = notionOrders.find(order => {
+                    const notionInvoice = String(order.invoice).trim();
+                    return notionInvoice === csvInvoice;
+                });
+
                 if (notionOrder) {
                     invoice.customer = notionOrder.customer;
                     invoice.tracking = notionOrder.tracking;
                     invoice.orderStatus = notionOrder.status;
+                } else {
+                    // Debug: Log unmatched invoices
+                    console.log('No match found for invoice:', csvInvoice);
                 }
             });
 
