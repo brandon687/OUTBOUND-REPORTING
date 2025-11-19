@@ -27,10 +27,24 @@ app.get('/api/orders', async (req, res) => {
 
     console.log('Fetching orders from Notion...');
 
-    const response = await notion.databases.query({
-      database_id: databaseId,
-      page_size: 100,
-    });
+    // Fetch all pages (handle pagination)
+    let allResults = [];
+    let hasMore = true;
+    let startCursor = undefined;
+
+    while (hasMore) {
+      const response = await notion.databases.query({
+        database_id: databaseId,
+        page_size: 100,
+        start_cursor: startCursor,
+      });
+
+      allResults = allResults.concat(response.results);
+      hasMore = response.has_more;
+      startCursor = response.next_cursor;
+    }
+
+    const response = { results: allResults };
 
     // Transform Notion data to our format
     const orders = response.results.map(page => {
@@ -45,9 +59,18 @@ app.get('/api/orders', async (req, res) => {
 
       // Parse INVOICE - CUSTOMER field which contains "InvoiceNum - CustomerName"
       const invoiceCustomerText = props['INVOICE - CUSTOMER']?.title?.[0]?.text?.content || '';
-      const parts = invoiceCustomerText.split(' - ');
-      const invoiceNum = parts[0]?.trim() || '';
-      const customerName = parts.slice(1).join(' - ').trim() || '';
+      const customerParts = invoiceCustomerText.split(' - ');
+      const invoiceNum = customerParts[0]?.trim() || '';
+      const customerName = customerParts.slice(1).join(' - ').trim() || '';
+
+      // Parse INVOICE - QTY field which contains "InvoiceNum - Quantity"
+      const invoiceQtyText = props['INVOICE - QTY']?.rich_text?.[0]?.plain_text || '';
+      const qtyParts = invoiceQtyText.split(' - ');
+      const quantity = qtyParts[1] ? parseInt(qtyParts[1].trim()) : 0;
+
+      // Get order details and ASN
+      const orderDetails = props['ORDER DETAILS']?.rich_text?.[0]?.plain_text || '';
+      const asn = props['ASN']?.rich_text?.[0]?.plain_text || '';
 
       return {
         invoice: invoiceNum ||
@@ -55,10 +78,12 @@ app.get('/api/orders', async (req, res) => {
                  props['Invoice #']?.rich_text?.[0]?.plain_text || '',
         customer: customerName,
         tracking: props['TRACKING']?.rich_text?.[0]?.plain_text || '',
-        quantity: props['INVOICE - QTY']?.number || 0,
+        quantity: quantity,
         status: props['Order type']?.select?.name ||
                 props['STATUS']?.select?.name ||
                 (props['Completed']?.checkbox ? 'Completed' : ''),
+        orderDetails: orderDetails,
+        asn: asn,
       };
     });
 
