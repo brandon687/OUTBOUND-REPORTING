@@ -571,16 +571,32 @@
         // Fetch Notion orders on page load
         async function fetchNotionOrders() {
             try {
-                const response = await fetch('/api/orders');
+                console.log('Fetching Notion orders with cache-busting...');
+                const timestamp = new Date().getTime();
+                const response = await fetch(`/api/orders?t=${timestamp}`, {
+                    method: 'GET',
+                    cache: 'no-cache',
+                    headers: {
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    }
+                });
+
+                console.log('Response status:', response.status);
+                console.log('Response ok:', response.ok);
+
                 if (response.ok) {
                     const data = await response.json();
                     notionOrders = data.orders;
-                    console.log('Loaded', notionOrders.length, 'orders from Notion');
+                    console.log('✓ Loaded', notionOrders.length, 'orders from Notion');
+                    console.log('✓ First 3 invoices:', notionOrders.slice(0, 3).map(o => `${o.invoice} - ${o.customer}`));
+                    console.log('✓ Sample invoice 20997:', notionOrders.find(o => o.invoice === '20997'));
                 } else {
-                    console.warn('Could not fetch Notion orders:', response.statusText);
+                    console.error('❌ Failed to fetch Notion orders:', response.status, response.statusText);
                 }
             } catch (error) {
-                console.warn('Notion API not available:', error.message);
+                console.error('❌ Error fetching Notion orders:', error);
             }
         }
 
