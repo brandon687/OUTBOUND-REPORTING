@@ -21,19 +21,24 @@ const notion = new Client({
 
 // Initialize Google Sheets client
 let sheetsClient = null;
-if (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    },
-    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-  });
+try {
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
 
-  sheetsClient = google.sheets({ version: 'v4', auth });
-  console.log('✓ Google Sheets API client initialized');
-} else {
-  console.warn('⚠️  Google Sheets credentials not configured');
+    sheetsClient = google.sheets({ version: 'v4', auth });
+    console.log('✓ Google Sheets API client initialized');
+  } else {
+    console.warn('⚠️  Google Sheets credentials not configured');
+  }
+} catch (error) {
+  console.error('❌ Failed to initialize Google Sheets client:', error.message);
+  console.warn('⚠️  Historical calendar view will not be available');
 }
 
 // Cache for Notion orders
