@@ -131,6 +131,38 @@ async function fetchAndCacheNotionOrders(forceRefresh = false) {
   return orders;
 }
 
+// API endpoint to test Google Sheets connection (MUST come before parameterized route)
+app.get('/api/historical/test', async (req, res) => {
+  try {
+    if (!sheetsClient) {
+      return res.status(503).json({ error: 'Google Sheets not configured' });
+    }
+
+    const sheetId = process.env.GOOGLE_SHEET_ID;
+    const sheetName = process.env.GOOGLE_SHEET_NAME || 'outbound IMEIs';
+
+    const response = await sheetsClient.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: `${sheetName}!A2:J10`, // Get first 10 rows
+    });
+
+    res.json({
+      status: 'ok',
+      sheetId,
+      sheetName,
+      totalRows: response.data.values?.length || 0,
+      sampleData: response.data.values || [],
+    });
+
+  } catch (error) {
+    console.error('Error testing Google Sheets:', error);
+    res.status(500).json({
+      error: 'Google Sheets test failed',
+      details: error.message,
+    });
+  }
+});
+
 // API endpoint to fetch historical data from Google Sheets aggregated by date
 app.get('/api/historical/:year/:month', async (req, res) => {
   try {
@@ -238,38 +270,6 @@ app.get('/api/historical/:year/:month', async (req, res) => {
     console.error('Error fetching historical data:', error);
     res.status(500).json({
       error: 'Failed to fetch historical data',
-      details: error.message,
-    });
-  }
-});
-
-// API endpoint to test Google Sheets connection
-app.get('/api/historical/test', async (req, res) => {
-  try {
-    if (!sheetsClient) {
-      return res.status(503).json({ error: 'Google Sheets not configured' });
-    }
-
-    const sheetId = process.env.GOOGLE_SHEET_ID;
-    const sheetName = process.env.GOOGLE_SHEET_NAME || 'outbound IMEIs';
-
-    const response = await sheetsClient.spreadsheets.values.get({
-      spreadsheetId: sheetId,
-      range: `${sheetName}!A2:J10`, // Get first 10 rows
-    });
-
-    res.json({
-      status: 'ok',
-      sheetId,
-      sheetName,
-      totalRows: response.data.values?.length || 0,
-      sampleData: response.data.values || [],
-    });
-
-  } catch (error) {
-    console.error('Error testing Google Sheets:', error);
-    res.status(500).json({
-      error: 'Google Sheets test failed',
       details: error.message,
     });
   }
