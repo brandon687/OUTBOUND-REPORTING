@@ -22,23 +22,73 @@ const notion = new Client({
 // Initialize Google Sheets client
 let sheetsClient = null;
 try {
-  if (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && (process.env.GOOGLE_PRIVATE_KEY || process.env.GOOGLE_PRIVATE_KEY_BASE64)) {
+    // Parse private key - handle different possible formats
+    let privateKey = '';
+
+    // Try base64-encoded key first (most reliable for env vars)
+    if (process.env.GOOGLE_PRIVATE_KEY_BASE64) {
+      console.log('🔑 Using base64-encoded private key...');
+      privateKey = Buffer.from(process.env.GOOGLE_PRIVATE_KEY_BASE64, 'base64').toString('utf8');
+    } else {
+      privateKey = process.env.GOOGLE_PRIVATE_KEY;
+
+      // If the key has literal \n strings (not actual newlines), replace them
+      if (privateKey.includes('\\n')) {
+        console.log('🔑 Converting literal \\n to newlines...');
+        privateKey = privateKey.replace(/\\n/g, '\n');
+      }
+    }
+
+    // Remove any surrounding quotes that might have been added
+    privateKey = privateKey.trim();
+    if ((privateKey.startsWith('"') && privateKey.endsWith('"')) ||
+        (privateKey.startsWith("'") && privateKey.endsWith("'"))) {
+      privateKey = privateKey.slice(1, -1);
+    }
+
+    // Ensure the key starts and ends correctly
+    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+      throw new Error('Private key missing BEGIN marker');
+    }
+    if (!privateKey.includes('-----END PRIVATE KEY-----')) {
+      throw new Error('Private key missing END marker');
+    }
+
+    // Validate key length
+    if (privateKey.length < 1000) {
+      throw new Error(`Private key too short (${privateKey.length} chars, expected 1600+)`);
+    }
+
+    console.log('🔑 Attempting to initialize Google Sheets with service account...');
+    console.log(`   Email: ${process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL}`);
+    console.log(`   Key length: ${privateKey.length} chars`);
+    console.log(`   Key preview: ${privateKey.substring(0, 35)}...`);
+
     const auth = new google.auth.GoogleAuth({
       credentials: {
         client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-        private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        private_key: privateKey,
       },
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
 
     sheetsClient = google.sheets({ version: 'v4', auth });
-    console.log('✓ Google Sheets API client initialized');
+    console.log('✓ Google Sheets API client initialized successfully');
   } else {
     console.warn('⚠️  Google Sheets credentials not configured');
+    if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) {
+      console.warn('   Missing: GOOGLE_SERVICE_ACCOUNT_EMAIL');
+    }
+    if (!process.env.GOOGLE_PRIVATE_KEY && !process.env.GOOGLE_PRIVATE_KEY_BASE64) {
+      console.warn('   Missing: GOOGLE_PRIVATE_KEY or GOOGLE_PRIVATE_KEY_BASE64');
+    }
   }
 } catch (error) {
   console.error('❌ Failed to initialize Google Sheets client:', error.message);
+  console.error('   Stack:', error.stack);
   console.warn('⚠️  Historical calendar view will not be available');
+  console.warn('   💡 Try encoding your key as base64 and set GOOGLE_PRIVATE_KEY_BASE64 instead');
 }
 
 // Cache for Notion orders
@@ -136,15 +186,107 @@ async function fetchAndCacheNotionOrders(forceRefresh = false) {
   return orders;
 }
 
+// API endpoint to diagnose Google Sheets credentials
+app.get('/api/historical/diagnose', (req, res) => {
+  const diagnosis = {
+    configured: false,
+    variables: {},
+    keyFormat: null,
+    issues: [],
+  };
+
+  // Check environment variables
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) {
+    diagnosis.variables.email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  } else {
+    diagnosis.issues.push('GOOGLE_SERVICE_ACCOUNT_EMAIL is not set');
+  }
+
+  if (process.env.GOOGLE_SHEET_ID) {
+    diagnosis.variables.sheetId = process.env.GOOGLE_SHEET_ID;
+  } else {
+    diagnosis.issues.push('GOOGLE_SHEET_ID is not set');
+  }
+
+  if (process.env.GOOGLE_SHEET_NAME) {
+    diagnosis.variables.sheetName = process.env.GOOGLE_SHEET_NAME;
+  } else {
+    diagnosis.issues.push('GOOGLE_SHEET_NAME is not set (will default to "outbound IMEIs")');
+  }
+
+  if (process.env.GOOGLE_PRIVATE_KEY_BASE64) {
+    const keyBase64 = process.env.GOOGLE_PRIVATE_KEY_BASE64;
+    let decodedKey = '';
+    try {
+      decodedKey = Buffer.from(keyBase64, 'base64').toString('utf8');
+    } catch (e) {
+      diagnosis.issues.push('GOOGLE_PRIVATE_KEY_BASE64 is not valid base64');
+    }
+
+    diagnosis.keyFormat = {
+      type: 'base64',
+      encodedLength: keyBase64.length,
+      decodedLength: decodedKey.length,
+      startsCorrectly: decodedKey.includes('-----BEGIN PRIVATE KEY-----'),
+      endsCorrectly: decodedKey.includes('-----END PRIVATE KEY-----'),
+      preview: decodedKey.substring(0, 50) + '...',
+    };
+
+    if (decodedKey && !decodedKey.includes('-----BEGIN PRIVATE KEY-----')) {
+      diagnosis.issues.push('Decoded private key missing BEGIN marker');
+    }
+    if (decodedKey && !decodedKey.includes('-----END PRIVATE KEY-----')) {
+      diagnosis.issues.push('Decoded private key missing END marker');
+    }
+    if (decodedKey && decodedKey.length < 1000) {
+      diagnosis.issues.push('Decoded private key seems too short (should be ~1600+ chars)');
+    }
+  } else if (process.env.GOOGLE_PRIVATE_KEY) {
+    const key = process.env.GOOGLE_PRIVATE_KEY;
+    diagnosis.keyFormat = {
+      type: 'plain',
+      length: key.length,
+      hasBackslashN: key.includes('\\n'),
+      hasActualNewlines: key.includes('\n'),
+      startsCorrectly: key.includes('-----BEGIN PRIVATE KEY-----'),
+      endsCorrectly: key.includes('-----END PRIVATE KEY-----'),
+      preview: key.substring(0, 50) + '...',
+    };
+
+    if (!key.includes('-----BEGIN PRIVATE KEY-----')) {
+      diagnosis.issues.push('Private key missing BEGIN marker');
+    }
+    if (!key.includes('-----END PRIVATE KEY-----')) {
+      diagnosis.issues.push('Private key missing END marker');
+    }
+    if (key.length < 1000) {
+      diagnosis.issues.push('Private key seems too short (should be ~1600+ chars)');
+    }
+  } else {
+    diagnosis.issues.push('GOOGLE_PRIVATE_KEY or GOOGLE_PRIVATE_KEY_BASE64 is not set');
+    diagnosis.issues.push('💡 Tip: Use GOOGLE_PRIVATE_KEY_BASE64 for better compatibility');
+  }
+
+  diagnosis.configured = sheetsClient !== null;
+  diagnosis.clientInitialized = sheetsClient !== null;
+
+  res.json(diagnosis);
+});
+
 // API endpoint to test Google Sheets connection (MUST come before parameterized route)
 app.get('/api/historical/test', async (req, res) => {
   try {
     if (!sheetsClient) {
-      return res.status(503).json({ error: 'Google Sheets not configured' });
+      return res.status(503).json({
+        error: 'Google Sheets not configured',
+        hint: 'Check /api/historical/diagnose for details'
+      });
     }
 
     const sheetId = process.env.GOOGLE_SHEET_ID;
     const sheetName = process.env.GOOGLE_SHEET_NAME || 'outbound IMEIs';
+
+    console.log(`Testing Google Sheets connection to ${sheetId}...`);
 
     const response = await sheetsClient.spreadsheets.values.get({
       spreadsheetId: sheetId,
@@ -164,6 +306,12 @@ app.get('/api/historical/test', async (req, res) => {
     res.status(500).json({
       error: 'Google Sheets test failed',
       details: error.message,
+      code: error.code,
+      hint: error.message.includes('JWT')
+        ? 'Private key format issue - check /api/historical/diagnose'
+        : error.message.includes('permission')
+        ? 'Sheet not shared with service account'
+        : 'Check logs for details',
     });
   }
 });
