@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historical Calendar - Outbound Reporting</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica', 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .navigation {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .nav-button {
+            padding: 12px 30px;
+            background: white;
+            color: #667eea;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .nav-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .nav-button.active {
+            background: #764ba2;
+            color: white;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 0.95rem;
+        }
+
+        .calendar-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: white;
+            border-radius: 15px;
+            padding: 20px 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .month-year {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .month-navigation {
+            display: flex;
+            gap: 15px;
+        }
+
+        .month-nav-btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .month-nav-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .calendar-grid {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .calendar-header {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .calendar-header-day {
+            text-align: center;
+            font-weight: 700;
+            color: #667eea;
+            padding: 15px;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .calendar-days {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 10px;
+        }
+
+        .calendar-day {
+            min-height: 120px;
+            padding: 15px;
+            border: 2px solid #f0f0f0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .calendar-day.empty {
+            background: #fafafa;
+            cursor: default;
+        }
+
+        .calendar-day.has-data {
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border-color: #667eea;
+        }
+
+        .calendar-day.has-data:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+            border-color: #764ba2;
+        }
+
+        .day-number {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .day-revenue {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #667eea;
+            margin-top: 10px;
+        }
+
+        .day-units {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .day-details {
+            display: none;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            margin-top: 30px;
+        }
+
+        .day-details.active {
+            display: block;
+        }
+
+        .details-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .details-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .close-details {
+            padding: 10px 20px;
+            background: #f0f0f0;
+            color: #333;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .close-details:hover {
+            background: #e0e0e0;
+        }
+
+        .details-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+
+        .invoices-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .invoices-table th {
+            background: #f8f9ff;
+            color: #333;
+            font-weight: 700;
+            text-align: left;
+            padding: 15px;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .invoices-table td {
+            padding: 15px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .invoices-table tr:hover {
+            background: #f8f9ff;
+        }
+
+        .invoice-type {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .invoice-type.mixed {
+            background: #667eea;
+            color: white;
+        }
+
+        .invoice-type.b2b {
+            background: #00b894;
+            color: white;
+        }
+
+        .invoice-type.wholesale {
+            background: #fdcb6e;
+            color: #333;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.2rem;
+            color: #666;
+        }
+
+        .error {
+            background: #ff7675;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="navigation">
+            <a href="/" class="nav-button">Daily Report</a>
+            <a href="/calendar" class="nav-button active">Historical Calendar</a>
+        </div>
+
+        <div class="header">
+            <h1>📅 Historical Calendar View</h1>
+            <p>Click on any date to view detailed invoice breakdown</p>
+        </div>
+
+        <div class="calendar-controls">
+            <div class="month-year" id="monthYear">Loading...</div>
+            <div class="month-navigation">
+                <button class="month-nav-btn" onclick="previousMonth()">← Previous</button>
+                <button class="month-nav-btn" onclick="nextMonth()">Next →</button>
+            </div>
+        </div>
+
+        <div class="calendar-grid">
+            <div class="calendar-header">
+                <div class="calendar-header-day">Sun</div>
+                <div class="calendar-header-day">Mon</div>
+                <div class="calendar-header-day">Tue</div>
+                <div class="calendar-header-day">Wed</div>
+                <div class="calendar-header-day">Thu</div>
+                <div class="calendar-header-day">Fri</div>
+                <div class="calendar-header-day">Sat</div>
+            </div>
+            <div class="calendar-days" id="calendarDays">
+                <div class="loading">Loading calendar data...</div>
+            </div>
+        </div>
+
+        <div class="day-details" id="dayDetails">
+            <div class="details-header">
+                <div class="details-title" id="detailsTitle">Date Details</div>
+                <button class="close-details" onclick="closeDetails()">Close</button>
+            </div>
+            <div class="details-stats" id="detailsStats"></div>
+            <table class="invoices-table" id="invoicesTable">
+                <thead>
+                    <tr>
+                        <th>Invoice</th>
+                        <th>Type</th>
+                        <th>Units</th>
+                        <th>Total Revenue</th>
+                    </tr>
+                </thead>
+                <tbody id="invoicesTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let currentYear = new Date().getFullYear();
+        let currentMonth = new Date().getMonth() + 1; // 1-12
+        let historicalData = null;
+
+        async function loadCalendar(year, month) {
+            try {
+                const monthStr = String(month).padStart(2, '0');
+                document.getElementById('monthYear').textContent = `${getMonthName(month)} ${year}`;
+                document.getElementById('calendarDays').innerHTML = '<div class="loading">Loading calendar data...</div>';
+
+                const response = await fetch(`/api/historical/${year}/${monthStr}`);
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch historical data');
+                }
+
+                const data = await response.json();
+                historicalData = data;
+
+                renderCalendar(year, month, data.dailyTotals);
+            } catch (error) {
+                console.error('Error loading calendar:', error);
+                document.getElementById('calendarDays').innerHTML = `
+                    <div class="error">
+                        Error loading calendar data: ${error.message}
+                        <br><br>
+                        Make sure Google Sheets API is configured properly.
+                    </div>
+                `;
+            }
+        }
+
+        function renderCalendar(year, month, dailyTotals) {
+            const firstDay = new Date(year, month - 1, 1).getDay();
+            const daysInMonth = new Date(year, month, 0).getDate();
+
+            let html = '';
+
+            // Empty cells before first day
+            for (let i = 0; i < firstDay; i++) {
+                html += '<div class="calendar-day empty"></div>';
+            }
+
+            // Days of the month
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateKey = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const dayData = dailyTotals[dateKey];
+
+                if (dayData) {
+                    html += `
+                        <div class="calendar-day has-data" onclick="showDayDetails('${dateKey}')">
+                            <div class="day-number">${day}</div>
+                            <div class="day-revenue">$${dayData.totalRevenue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                            <div class="day-units">${dayData.totalUnits} units</div>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="calendar-day">
+                            <div class="day-number">${day}</div>
+                            <div class="day-units" style="color: #ccc; margin-top: 20px;">No data</div>
+                        </div>
+                    `;
+                }
+            }
+
+            document.getElementById('calendarDays').innerHTML = html;
+        }
+
+        function showDayDetails(dateKey) {
+            const dayData = historicalData.dailyTotals[dateKey];
+            const invoicesData = historicalData.invoicesByDate[dateKey];
+
+            if (!dayData || !invoicesData) return;
+
+            const date = new Date(dateKey);
+            const formattedDate = date.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+
+            document.getElementById('detailsTitle').textContent = formattedDate;
+
+            // Stats
+            document.getElementById('detailsStats').innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-label">Total Revenue</div>
+                    <div class="stat-value">$${dayData.totalRevenue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Units</div>
+                    <div class="stat-value">${dayData.totalUnits}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Invoices</div>
+                    <div class="stat-value">${dayData.invoiceCount}</div>
+                </div>
+            `;
+
+            // Invoices table
+            const invoicesList = Object.values(invoicesData).sort((a, b) => parseInt(b.invno) - parseInt(a.invno));
+            const tableRows = invoicesList.map(invoice => `
+                <tr>
+                    <td><strong>${invoice.invno}</strong></td>
+                    <td><span class="invoice-type ${invoice.invtype.toLowerCase()}">${invoice.invtype.toUpperCase()}</span></td>
+                    <td>${invoice.units}</td>
+                    <td><strong>$${invoice.total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></td>
+                </tr>
+            `).join('');
+
+            document.getElementById('invoicesTableBody').innerHTML = tableRows;
+
+            document.getElementById('dayDetails').classList.add('active');
+            document.getElementById('dayDetails').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function closeDetails() {
+            document.getElementById('dayDetails').classList.remove('active');
+        }
+
+        function previousMonth() {
+            currentMonth--;
+            if (currentMonth < 1) {
+                currentMonth = 12;
+                currentYear--;
+            }
+            loadCalendar(currentYear, currentMonth);
+            closeDetails();
+        }
+
+        function nextMonth() {
+            currentMonth++;
+            if (currentMonth > 12) {
+                currentMonth = 1;
+                currentYear++;
+            }
+            loadCalendar(currentYear, currentMonth);
+            closeDetails();
+        }
+
+        function getMonthName(month) {
+            const months = ['January', 'February', 'March', 'April', 'May', 'June',
+                          'July', 'August', 'September', 'October', 'November', 'December'];
+            return months[month - 1];
+        }
+
+        // Load current month on page load
+        loadCalendar(currentYear, currentMonth);
+    </script>
+</body>
+</html>

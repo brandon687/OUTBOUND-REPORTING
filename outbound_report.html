@@ -598,10 +598,47 @@
             text-align: center;
             letter-spacing: 0.5px;
         }
+
+        .navigation {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .nav-button {
+            padding: 12px 30px;
+            background: white;
+            color: #667eea;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .nav-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .nav-button.active {
+            background: white;
+            color: #667eea;
+            box-shadow: 0 4px 12px rgba(255, 255, 255, 0.3);
+        }
     </style>
 </head>
 <body>
     <div class="container">
+        <div class="navigation">
+            <a href="/" class="nav-button active">Daily Report</a>
+            <a href="/calendar" class="nav-button">Historical Calendar</a>
+        </div>
+
         <div class="header">
             <h1>📊 Outbound Inventory Report</h1>
             <p>Upload your daily outbound CSV to generate comprehensive analytics</p>
