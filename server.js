@@ -21,49 +21,181 @@ const notion = new Client({
 
 // Initialize Google Sheets client
 let sheetsClient = null;
+let credentialDiagnostics = { success: false, attempts: [], finalError: null };
+
 try {
   if (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && (process.env.GOOGLE_PRIVATE_KEY || process.env.GOOGLE_PRIVATE_KEY_BASE64)) {
-    // Parse private key - handle different possible formats
+    console.log('🔑 Attempting to parse Google Sheets credentials...');
+
     let privateKey = '';
+    let parseMethod = '';
 
-    // Try base64-encoded key first (most reliable for env vars)
+    // Strategy 1: Try GOOGLE_PRIVATE_KEY_BASE64 with enhanced validation
     if (process.env.GOOGLE_PRIVATE_KEY_BASE64) {
-      console.log('🔑 Using base64-encoded private key...');
-      privateKey = Buffer.from(process.env.GOOGLE_PRIVATE_KEY_BASE64, 'base64').toString('utf8');
-    } else {
-      privateKey = process.env.GOOGLE_PRIVATE_KEY;
+      const base64Value = process.env.GOOGLE_PRIVATE_KEY_BASE64.trim();
+      console.log(`📊 GOOGLE_PRIVATE_KEY_BASE64 found (${base64Value.length} chars)`);
 
-      // If the key has literal \n strings (not actual newlines), replace them
+      try {
+        // Validate it looks like base64
+        if (!/^[A-Za-z0-9+/]+=*$/.test(base64Value)) {
+          console.warn('⚠️  Value does not look like valid base64 (contains invalid characters)');
+          credentialDiagnostics.attempts.push({
+            method: 'base64',
+            success: false,
+            reason: 'Not valid base64 format - contains invalid characters'
+          });
+        } else {
+          // Try to decode
+          const decoded = Buffer.from(base64Value, 'base64').toString('utf8');
+          console.log(`📊 Decoded to ${decoded.length} chars`);
+          console.log(`📊 First 100 chars: ${decoded.substring(0, 100)}`);
+          console.log(`📊 Last 100 chars: ${decoded.substring(decoded.length - 100)}`);
+
+          if (decoded.includes('-----BEGIN PRIVATE KEY-----')) {
+            privateKey = decoded;
+            parseMethod = 'base64-decoded';
+            console.log('✓ Successfully decoded base64 key with valid markers');
+            credentialDiagnostics.attempts.push({
+              method: 'base64',
+              success: true,
+              keyLength: decoded.length
+            });
+          } else {
+            console.warn('⚠️  Decoded value missing BEGIN marker');
+            console.warn(`    Decoded preview: "${decoded.substring(0, 200)}..."`);
+            credentialDiagnostics.attempts.push({
+              method: 'base64',
+              success: false,
+              reason: 'Decoded value missing BEGIN PRIVATE KEY marker',
+              preview: decoded.substring(0, 200)
+            });
+
+            // Maybe it's double-encoded? Try decoding again
+            try {
+              const doubleDecoded = Buffer.from(decoded, 'base64').toString('utf8');
+              if (doubleDecoded.includes('-----BEGIN PRIVATE KEY-----')) {
+                privateKey = doubleDecoded;
+                parseMethod = 'base64-double-decoded';
+                console.log('✓ Key was double-encoded! Successfully decoded twice');
+                credentialDiagnostics.attempts.push({
+                  method: 'base64-double',
+                  success: true,
+                  keyLength: doubleDecoded.length
+                });
+              }
+            } catch (e) {
+              // Not double-encoded
+            }
+          }
+        }
+      } catch (decodeError) {
+        console.error('❌ Failed to decode base64:', decodeError.message);
+        credentialDiagnostics.attempts.push({
+          method: 'base64',
+          success: false,
+          reason: `Decode error: ${decodeError.message}`
+        });
+      }
+
+      // Strategy 1.5: Maybe the base64 value is actually a plain key?
+      if (!privateKey && base64Value.includes('-----BEGIN PRIVATE KEY-----')) {
+        console.log('🔧 GOOGLE_PRIVATE_KEY_BASE64 appears to contain a plain key (not base64)');
+        privateKey = base64Value;
+        parseMethod = 'base64-var-but-plain-key';
+        credentialDiagnostics.attempts.push({
+          method: 'base64-var-plain-key',
+          success: true,
+          note: 'Variable name says base64 but value is plain text'
+        });
+      }
+    }
+
+    // Strategy 2: Try GOOGLE_PRIVATE_KEY (plain format)
+    if (!privateKey && process.env.GOOGLE_PRIVATE_KEY) {
+      const plainValue = process.env.GOOGLE_PRIVATE_KEY;
+      console.log(`📊 GOOGLE_PRIVATE_KEY found (${plainValue.length} chars)`);
+      console.log(`📊 Preview: ${plainValue.substring(0, 100)}`);
+
+      privateKey = plainValue;
+      parseMethod = 'plain';
+
+      // Handle literal \n strings (not actual newlines)
+      if (privateKey.includes('\\n') && !privateKey.includes('\n')) {
+        console.log('🔧 Converting literal \\n to actual newlines...');
+        privateKey = privateKey.replace(/\\n/g, '\n');
+        parseMethod = 'plain-converted-newlines';
+      }
+
+      credentialDiagnostics.attempts.push({
+        method: 'plain',
+        success: true,
+        hadLiteralNewlines: plainValue.includes('\\n')
+      });
+    }
+
+    // Post-processing: Clean up the key
+    if (privateKey) {
+      console.log(`🔧 Post-processing key (current length: ${privateKey.length})...`);
+
+      // Remove surrounding whitespace
+      privateKey = privateKey.trim();
+
+      // Remove surrounding quotes
+      if ((privateKey.startsWith('"') && privateKey.endsWith('"')) ||
+          (privateKey.startsWith("'") && privateKey.endsWith("'"))) {
+        console.log('🔧 Removing surrounding quotes...');
+        privateKey = privateKey.slice(1, -1);
+      }
+
+      // Handle escaped newlines one more time in case they survived
       if (privateKey.includes('\\n')) {
-        console.log('🔑 Converting literal \\n to newlines...');
+        console.log('🔧 Converting remaining literal \\n to newlines...');
         privateKey = privateKey.replace(/\\n/g, '\n');
       }
     }
 
-    // Remove any surrounding quotes that might have been added
-    privateKey = privateKey.trim();
-    if ((privateKey.startsWith('"') && privateKey.endsWith('"')) ||
-        (privateKey.startsWith("'") && privateKey.endsWith("'"))) {
-      privateKey = privateKey.slice(1, -1);
+    // Validation: Check if we have a valid key
+    if (!privateKey) {
+      throw new Error('Unable to parse private key from any format');
     }
 
-    // Ensure the key starts and ends correctly
+    console.log(`📊 Final key length: ${privateKey.length} chars`);
+    console.log(`📊 Parse method: ${parseMethod}`);
+
     if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-      throw new Error('Private key missing BEGIN marker');
+      credentialDiagnostics.finalError = {
+        type: 'missing-begin-marker',
+        keyLength: privateKey.length,
+        preview: privateKey.substring(0, 300),
+        parseMethod
+      };
+      throw new Error(`Private key missing BEGIN marker (length: ${privateKey.length}, method: ${parseMethod}). Preview: "${privateKey.substring(0, 100)}..."`);
     }
     if (!privateKey.includes('-----END PRIVATE KEY-----')) {
-      throw new Error('Private key missing END marker');
+      credentialDiagnostics.finalError = {
+        type: 'missing-end-marker',
+        keyLength: privateKey.length,
+        parseMethod
+      };
+      throw new Error(`Private key missing END marker (length: ${privateKey.length}, method: ${parseMethod})`);
     }
 
-    // Validate key length
+    // Validate key length (typical RSA 2048-bit private key is ~1600-1700 chars in PEM format)
     if (privateKey.length < 1000) {
-      throw new Error(`Private key too short (${privateKey.length} chars, expected 1600+)`);
+      credentialDiagnostics.finalError = {
+        type: 'key-too-short',
+        keyLength: privateKey.length,
+        parseMethod
+      };
+      throw new Error(`Private key too short (${privateKey.length} chars, expected 1600+, method: ${parseMethod})`);
     }
 
-    console.log('🔑 Attempting to initialize Google Sheets with service account...');
+    console.log('✓ Private key validation passed');
+    console.log(`   Method: ${parseMethod}`);
     console.log(`   Email: ${process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL}`);
     console.log(`   Key length: ${privateKey.length} chars`);
-    console.log(`   Key preview: ${privateKey.substring(0, 35)}...`);
+    console.log(`   Key start: ${privateKey.substring(0, 50)}...`);
+    console.log(`   Key end: ...${privateKey.substring(privateKey.length - 50)}`);
 
     const auth = new google.auth.GoogleAuth({
       credentials: {
@@ -74,6 +206,8 @@ try {
     });
 
     sheetsClient = google.sheets({ version: 'v4', auth });
+    credentialDiagnostics.success = true;
+    credentialDiagnostics.parseMethod = parseMethod;
     console.log('✓ Google Sheets API client initialized successfully');
   } else {
     console.warn('⚠️  Google Sheets credentials not configured');
@@ -85,10 +219,21 @@ try {
     }
   }
 } catch (error) {
+  credentialDiagnostics.finalError = error.message;
   console.error('❌ Failed to initialize Google Sheets client:', error.message);
-  console.error('   Stack:', error.stack);
+  console.error('   Full error:', error);
   console.warn('⚠️  Historical calendar view will not be available');
-  console.warn('   💡 Try encoding your key as base64 and set GOOGLE_PRIVATE_KEY_BASE64 instead');
+  console.warn('');
+  console.warn('   🔍 DIAGNOSTIC INFORMATION:');
+  console.warn('   ' + JSON.stringify(credentialDiagnostics, null, 2).split('\n').join('\n   '));
+  console.warn('');
+  console.warn('   💡 RECOMMENDED FIXES:');
+  console.warn('   1. Visit /api/historical/diagnose to see detailed diagnostics');
+  console.warn('   2. Download your service account JSON key from Google Cloud Console');
+  console.warn('   3. Run: node encode-google-key.js path/to/key.json');
+  console.warn('   4. Copy the base64 output and set as GOOGLE_PRIVATE_KEY_BASE64 in Railway');
+  console.warn('   5. Remove GOOGLE_PRIVATE_KEY if it exists (use only one method)');
+  console.warn('');
 }
 
 // Cache for Notion orders
@@ -193,6 +338,9 @@ app.get('/api/historical/diagnose', (req, res) => {
     variables: {},
     keyFormat: null,
     issues: [],
+    initializationAttempts: credentialDiagnostics.attempts || [],
+    parseMethod: credentialDiagnostics.parseMethod || null,
+    initializationError: credentialDiagnostics.finalError || null,
   };
 
   // Check environment variables
@@ -214,32 +362,65 @@ app.get('/api/historical/diagnose', (req, res) => {
     diagnosis.issues.push('GOOGLE_SHEET_NAME is not set (will default to "outbound IMEIs")');
   }
 
+  // Enhanced key diagnostics
   if (process.env.GOOGLE_PRIVATE_KEY_BASE64) {
-    const keyBase64 = process.env.GOOGLE_PRIVATE_KEY_BASE64;
+    const keyBase64 = process.env.GOOGLE_PRIVATE_KEY_BASE64.trim();
     let decodedKey = '';
+    let isValidBase64 = /^[A-Za-z0-9+/]+=*$/.test(keyBase64);
+
     try {
       decodedKey = Buffer.from(keyBase64, 'base64').toString('utf8');
     } catch (e) {
-      diagnosis.issues.push('GOOGLE_PRIVATE_KEY_BASE64 is not valid base64');
+      diagnosis.issues.push(`GOOGLE_PRIVATE_KEY_BASE64 decode error: ${e.message}`);
     }
 
     diagnosis.keyFormat = {
       type: 'base64',
       encodedLength: keyBase64.length,
       decodedLength: decodedKey.length,
+      isValidBase64Format: isValidBase64,
+      containsInvalidChars: !isValidBase64,
       startsCorrectly: decodedKey.includes('-----BEGIN PRIVATE KEY-----'),
       endsCorrectly: decodedKey.includes('-----END PRIVATE KEY-----'),
-      preview: decodedKey.substring(0, 50) + '...',
+      preview: decodedKey.substring(0, 100) + '...',
+      previewEnd: decodedKey.length > 100 ? '...' + decodedKey.substring(decodedKey.length - 100) : '',
+      looksLikePlainKey: keyBase64.includes('-----BEGIN PRIVATE KEY-----'),
     };
+
+    if (!isValidBase64) {
+      diagnosis.issues.push('GOOGLE_PRIVATE_KEY_BASE64 contains invalid base64 characters');
+      diagnosis.issues.push('💡 Tip: The value should only contain A-Z, a-z, 0-9, +, /, and = characters');
+
+      // Check if it's actually a plain key
+      if (keyBase64.includes('-----BEGIN PRIVATE KEY-----')) {
+        diagnosis.issues.push('⚠️  CRITICAL: Your GOOGLE_PRIVATE_KEY_BASE64 contains a PLAIN KEY, not base64!');
+        diagnosis.issues.push('💡 FIX: Either:');
+        diagnosis.issues.push('   1. Run: node encode-google-key.js your-key.json and use that output');
+        diagnosis.issues.push('   2. OR rename this variable to GOOGLE_PRIVATE_KEY (without _BASE64)');
+      }
+    }
 
     if (decodedKey && !decodedKey.includes('-----BEGIN PRIVATE KEY-----')) {
       diagnosis.issues.push('Decoded private key missing BEGIN marker');
+      diagnosis.issues.push(`💡 Decoded value starts with: "${decodedKey.substring(0, 50)}..."`);
+
+      // Check if it might be double-encoded
+      try {
+        const doubleDecoded = Buffer.from(decodedKey, 'base64').toString('utf8');
+        if (doubleDecoded.includes('-----BEGIN PRIVATE KEY-----')) {
+          diagnosis.issues.push('⚠️  Your key appears to be DOUBLE-ENCODED!');
+          diagnosis.issues.push('💡 FIX: Re-encode from the original JSON file using encode-google-key.js');
+        }
+      } catch (e) {
+        // Not double-encoded
+      }
     }
     if (decodedKey && !decodedKey.includes('-----END PRIVATE KEY-----')) {
       diagnosis.issues.push('Decoded private key missing END marker');
     }
     if (decodedKey && decodedKey.length < 1000) {
-      diagnosis.issues.push('Decoded private key seems too short (should be ~1600+ chars)');
+      diagnosis.issues.push(`Decoded private key too short (${decodedKey.length} chars, should be ~1600+ chars)`);
+      diagnosis.issues.push('💡 This indicates the key is incomplete or wrong value was encoded');
     }
   } else if (process.env.GOOGLE_PRIVATE_KEY) {
     const key = process.env.GOOGLE_PRIVATE_KEY;
@@ -250,25 +431,46 @@ app.get('/api/historical/diagnose', (req, res) => {
       hasActualNewlines: key.includes('\n'),
       startsCorrectly: key.includes('-----BEGIN PRIVATE KEY-----'),
       endsCorrectly: key.includes('-----END PRIVATE KEY-----'),
-      preview: key.substring(0, 50) + '...',
+      preview: key.substring(0, 100) + '...',
+      previewEnd: key.length > 100 ? '...' + key.substring(key.length - 100) : '',
     };
 
     if (!key.includes('-----BEGIN PRIVATE KEY-----')) {
       diagnosis.issues.push('Private key missing BEGIN marker');
+      diagnosis.issues.push(`💡 Key starts with: "${key.substring(0, 50)}..."`);
     }
     if (!key.includes('-----END PRIVATE KEY-----')) {
       diagnosis.issues.push('Private key missing END marker');
     }
     if (key.length < 1000) {
-      diagnosis.issues.push('Private key seems too short (should be ~1600+ chars)');
+      diagnosis.issues.push(`Private key too short (${key.length} chars, should be ~1600+ chars)`);
+    }
+
+    // Additional tips for plain key format
+    if (key.includes('\\n') && !key.includes('\n')) {
+      diagnosis.issues.push('⚠️  Key contains literal backslash-n (\\n) but no actual newlines');
+      diagnosis.issues.push('💡 This is usually correct for Railway - the server will convert them');
     }
   } else {
     diagnosis.issues.push('GOOGLE_PRIVATE_KEY or GOOGLE_PRIVATE_KEY_BASE64 is not set');
     diagnosis.issues.push('💡 Tip: Use GOOGLE_PRIVATE_KEY_BASE64 for better compatibility');
+    diagnosis.issues.push('💡 Run: node encode-google-key.js your-service-account-key.json');
   }
 
   diagnosis.configured = sheetsClient !== null;
   diagnosis.clientInitialized = sheetsClient !== null;
+  diagnosis.initializationSuccess = credentialDiagnostics.success;
+
+  // Add helpful recommendations
+  diagnosis.recommendations = [];
+  if (!diagnosis.configured && diagnosis.issues.length > 0) {
+    diagnosis.recommendations.push('1. Download your service account JSON key from Google Cloud Console');
+    diagnosis.recommendations.push('2. Run locally: node encode-google-key.js path/to/your-key.json');
+    diagnosis.recommendations.push('3. Copy the entire base64 output');
+    diagnosis.recommendations.push('4. In Railway, set GOOGLE_PRIVATE_KEY_BASE64 to that value');
+    diagnosis.recommendations.push('5. Remove GOOGLE_PRIVATE_KEY if it exists');
+    diagnosis.recommendations.push('6. Redeploy and check logs');
+  }
 
   res.json(diagnosis);
 });
