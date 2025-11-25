@@ -1,0 +1,1802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OUTBOUND IMEI Analytics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0a0e27;
+            color: #e0e6ed;
+            overflow-x: hidden;
+        }
+
+        .bloomberg-header {
+            background: linear-gradient(135deg, #1a1f3a 0%, #0f1423 100%);
+            padding: 20px 40px;
+            border-bottom: 2px solid #f7931e;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 20px rgba(247, 147, 30, 0.2);
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: 700;
+            color: #f7931e;
+            letter-spacing: 2px;
+        }
+
+        .live-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            color: #6dd5ed;
+        }
+
+        .pulse {
+            width: 10px;
+            height: 10px;
+            background: #00ff88;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        .dashboard-container {
+            padding: 30px 40px;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .metric-card {
+            background: linear-gradient(135deg, #1e2749 0%, #151b35 100%);
+            border: 1px solid #2a3555;
+            border-radius: 12px;
+            padding: 25px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(247, 147, 30, 0.3);
+            border-color: #f7931e;
+        }
+
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(180deg, #f7931e, #6dd5ed);
+        }
+
+        .metric-label {
+            font-size: 13px;
+            color: #8892b0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .metric-value {
+            font-size: 36px;
+            font-weight: 700;
+            color: #e0e6ed;
+            margin-bottom: 8px;
+        }
+
+        .metric-change {
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .metric-change.positive { color: #00ff88; }
+        .metric-change.negative { color: #ff6b6b; }
+
+        .filters-section {
+            background: linear-gradient(135deg, #1e2749 0%, #151b35 100%);
+            border: 1px solid #2a3555;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+
+        .filters-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #f7931e;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .filter-label {
+            font-size: 12px;
+            color: #8892b0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        select, input {
+            background: #0f1423;
+            border: 1px solid #2a3555;
+            border-radius: 6px;
+            padding: 10px 15px;
+            color: #e0e6ed;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #f7931e;
+            box-shadow: 0 0 0 2px rgba(247, 147, 30, 0.2);
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .chart-card {
+            background: linear-gradient(135deg, #1e2749 0%, #151b35 100%);
+            border: 1px solid #2a3555;
+            border-radius: 12px;
+            padding: 25px;
+        }
+
+        .chart-card.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .chart-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #6dd5ed;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .trend-legend {
+            display: flex;
+            gap: 30px;
+            padding: 15px 20px;
+            background: rgba(42, 53, 85, 0.3);
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #2a3555;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .trend-legend-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #6dd5ed;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-right: 10px;
+        }
+
+        .trend-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .trend-legend-icon {
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .trend-legend-label {
+            color: #e0e6ed;
+            font-weight: 600;
+        }
+
+        .trend-legend-description {
+            color: #b0b8c5;
+            font-size: 12px;
+            margin-left: 4px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 350px;
+        }
+
+        .table-container {
+            background: linear-gradient(135deg, #1e2749 0%, #151b35 100%);
+            border: 1px solid #2a3555;
+            border-radius: 12px;
+            padding: 25px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #0f1423;
+            position: sticky;
+            top: 0;
+        }
+
+        th {
+            padding: 15px;
+            text-align: left;
+            font-size: 12px;
+            color: #f7931e;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 2px solid #2a3555;
+        }
+
+        td {
+            padding: 12px 15px;
+            font-size: 14px;
+            color: #e0e6ed;
+            border-bottom: 1px solid #1a1f3a;
+        }
+
+        tr:hover {
+            background: rgba(247, 147, 30, 0.1);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-mixed { background: #f7931e; color: #0a0e27; }
+        .badge-a { background: #00ff88; color: #0a0e27; }
+        .badge-ab { background: #6dd5ed; color: #0a0e27; }
+        .badge-raw { background: #8892b0; color: #0a0e27; }
+        .badge-locked { background: #ff6b6b; color: #0a0e27; }
+
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 400px;
+            font-size: 24px;
+            color: #f7931e;
+        }
+
+        /* Customer Profile Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 14, 39, 0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #1e2749 0%, #151b35 100%);
+            border: 2px solid #f7931e;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 1400px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #ff6b6b;
+            border: none;
+            color: white;
+            font-size: 24px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        .modal-close:hover {
+            background: #ff5252;
+            transform: rotate(90deg);
+        }
+
+        .profile-header {
+            border-bottom: 2px solid #2a3555;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        .profile-name {
+            font-size: 32px;
+            font-weight: 700;
+            color: #f7931e;
+            margin-bottom: 10px;
+        }
+
+        .profile-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .profile-metric {
+            background: #0f1423;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #6dd5ed;
+        }
+
+        .profile-metric-label {
+            font-size: 11px;
+            color: #8892b0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .profile-metric-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #e0e6ed;
+            margin-top: 5px;
+        }
+
+        .profile-section {
+            margin-bottom: 30px;
+        }
+
+        .profile-section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #6dd5ed;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        .mini-chart {
+            height: 250px;
+            margin-top: 15px;
+        }
+
+        @media (max-width: 1200px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            .modal-content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        function Dashboard() {
+            const [data, setData] = useState([]);
+            const [customerData, setCustomerData] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [filters, setFilters] = useState({
+                dateRange: 'all',
+                model: 'all',
+                invtype: 'all',
+                startDate: '',
+                endDate: ''
+            });
+            const [gradeView, setGradeView] = useState('all');
+            const [selectedCustomer, setSelectedCustomer] = useState(null);
+            const [customerProfile, setCustomerProfile] = useState(null);
+
+            // Normalize grade names
+            const normalizeGrade = (grade) => {
+                if (!grade) return 'Unknown';
+                const g = grade.toUpperCase().trim();
+                if (g.includes('A GRADE') || g === 'A GRADE') return 'A GRADE';
+                if (g.includes('AB GRADE') || g === 'AB GRADE') return 'A GRADE'; // Combine with A GRADE
+                if (g.includes('RAW')) return 'RAW';
+                if (g.includes('FALLOUT')) return 'FALLOUT';
+                if (g.includes('MIXED')) return 'MIXED';
+                if (g.includes('LOCKED')) return 'LOCKED';
+                return grade;
+            };
+
+            useEffect(() => {
+                // Fetch data from Google Sheets API
+                const fetchData = async () => {
+                    try {
+                        console.log('📊 Fetching live data from Google Sheets...');
+
+                        // Fetch IMEI data (limit to 100K rows to avoid browser crashes)
+                        const imeiResponse = await fetch('http://localhost:3000/api/sheets/dashboard-data?limit=100000');
+
+                        // Fetch customer data
+                        const customerResponse = await fetch('http://localhost:3000/api/sheets/customer-data');
+
+                        if (!imeiResponse.ok || !customerResponse.ok) {
+                            throw new Error(`HTTP error! IMEI status: ${imeiResponse.status}, Customer status: ${customerResponse.status}`);
+                        }
+
+                        const imeiResult = await imeiResponse.json();
+                        const customerResult = await customerResponse.json();
+
+                        if (imeiResult.error || customerResult.error) {
+                            console.error('❌ Google Sheets API error:', imeiResult.error || customerResult.error);
+                            console.log('💡 Hint:', imeiResult.hint || customerResult.hint);
+                            // Fall back to CSV if Google Sheets is not configured
+                            loadFromCSV();
+                            return;
+                        }
+
+                        console.log(`✓ Loaded ${imeiResult.rowCount} IMEI rows from Google Sheets`);
+                        console.log(`✓ Loaded ${customerResult.rowCount} customer rows from Google Sheets`);
+                        console.log('Sample IMEI data:', imeiResult.data.slice(0, 2));
+                        console.log('Sample customer data:', customerResult.data.slice(0, 2));
+
+                        // Transform the IMEI data to match expected format
+                        const transformedData = imeiResult.data.map(row => ({
+                            imei: row.imei,
+                            model: row.model,
+                            capacity: row.capacity,
+                            grade: row.grade,
+                            price: parseFloat(row.total) || 0,
+                            customer: row.customer,
+                            updated_at: row.date,
+                            invoice: row.invoice,
+                            tracking: row.tracking,
+                            invtype: row.invtype
+                        }));
+
+                        console.log('✅ Transformed data sample:', transformedData.slice(0, 3));
+                        console.log('✅ Total transformed rows:', transformedData.length);
+                        console.log('✅ First row price:', transformedData[0]?.price, 'type:', typeof transformedData[0]?.price);
+                        console.log('✅ First row updated_at:', transformedData[0]?.updated_at);
+
+                        setData(transformedData);
+                        setCustomerData(customerResult.data); // Use raw customer data from Google Sheets
+                        setLoading(false);
+
+                    } catch (error) {
+                        console.error('❌ Error fetching from Google Sheets:', error);
+                        console.log('⚠️ Falling back to CSV files...');
+                        loadFromCSV();
+                    }
+                };
+
+                // Fallback function to load from CSV files
+                const loadFromCSV = () => {
+                    Papa.parse('data_clean.csv', {
+                        download: true,
+                        header: true,
+                        skipEmptyLines: true,
+                        comments: true,
+                        complete: (results) => {
+                            console.log('Parsed data from CSV:', results);
+                            const cleanedData = results.data.filter(row => {
+                                const hasImei = row.imei && String(row.imei).trim().length > 10;
+                                const hasDate = row.updated_at && row.updated_at.length > 5;
+                                const hasPrice = row.price !== undefined && row.price !== null && row.price !== '';
+                                return hasImei && hasDate && hasPrice;
+                            });
+                            setData(cleanedData);
+                            setLoading(false);
+                        },
+                        error: (error) => {
+                            console.error('Parse error:', error);
+                            setLoading(false);
+                        }
+                    });
+
+                    Papa.parse('customer_data_clean.csv', {
+                        download: true,
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: (results) => {
+                            setCustomerData(results.data);
+                        },
+                        error: (error) => {
+                            console.error('Customer data parse error:', error);
+                        }
+                    });
+                };
+
+                fetchData();
+            }, []);
+
+            // Create customer lookup by INVNO
+            const customerLookup = useMemo(() => {
+                const lookup = {};
+                customerData.forEach(row => {
+                    if (row.INVNO) {
+                        lookup[row.INVNO] = row;
+                    }
+                });
+                return lookup;
+            }, [customerData]);
+
+            const filteredData = useMemo(() => {
+                return data.filter(row => {
+                    if (filters.model !== 'all' && row.model !== filters.model) return false;
+                    if (filters.invtype !== 'all' && row.invtype !== filters.invtype) return false;
+
+                    if (filters.dateRange !== 'all' && row.updated_at) {
+                        const rowDate = new Date(row.updated_at);
+                        const now = new Date();
+
+                        switch(filters.dateRange) {
+                            case 'today':
+                                if (rowDate.toDateString() !== now.toDateString()) return false;
+                                break;
+                            case 'week':
+                                const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                                if (rowDate < weekAgo) return false;
+                                break;
+                            case 'month':
+                                const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                                if (rowDate < monthAgo) return false;
+                                break;
+                            case 'custom':
+                                if (filters.startDate && rowDate < new Date(filters.startDate)) return false;
+                                if (filters.endDate && rowDate > new Date(filters.endDate)) return false;
+                                break;
+                        }
+                    }
+
+                    return true;
+                });
+            }, [data, filters]);
+
+            const analytics = useMemo(() => {
+                console.log('📊 Analytics calculation - filtered data length:', filteredData.length);
+                console.log('📊 Sample filtered data:', filteredData.slice(0, 2));
+
+                const totalUnits = filteredData.length;
+                const totalRevenue = filteredData.reduce((sum, row) => sum + (parseFloat(row.price) || 0), 0);
+                const avgPrice = totalUnits > 0 ? totalRevenue / totalUnits : 0;
+
+                console.log('📊 Total units:', totalUnits);
+                console.log('📊 Total revenue:', totalRevenue);
+                console.log('📊 Avg price:', avgPrice);
+
+                // Units by date
+                const unitsByDate = {};
+                filteredData.forEach(row => {
+                    const date = row.updated_at ? row.updated_at.split(' ')[0] : 'Unknown';
+                    unitsByDate[date] = (unitsByDate[date] || 0) + 1;
+                });
+
+                // Revenue by date
+                const revenueByDate = {};
+                filteredData.forEach(row => {
+                    const date = row.updated_at ? row.updated_at.split(' ')[0] : 'Unknown';
+                    revenueByDate[date] = (revenueByDate[date] || 0) + (parseFloat(row.price) || 0);
+                });
+
+                // Model rankings by grade - separate stats for each grade
+                const modelStatsByGrade = {};
+                filteredData.forEach(row => {
+                    const normalizedGrade = normalizeGrade(row.invtype);
+                    const key = `${row.model} ${row.capacity}`;
+
+                    if (!modelStatsByGrade[normalizedGrade]) {
+                        modelStatsByGrade[normalizedGrade] = {};
+                    }
+
+                    if (!modelStatsByGrade[normalizedGrade][key]) {
+                        modelStatsByGrade[normalizedGrade][key] = { count: 0, revenue: 0 };
+                    }
+
+                    modelStatsByGrade[normalizedGrade][key].count++;
+                    modelStatsByGrade[normalizedGrade][key].revenue += parseFloat(row.price) || 0;
+                });
+
+                // Get top models for selected grade view
+                let topModels = [];
+                if (gradeView === 'all') {
+                    // Aggregate all grades
+                    const allModels = {};
+                    Object.values(modelStatsByGrade).forEach(gradeStats => {
+                        Object.entries(gradeStats).forEach(([model, stats]) => {
+                            if (!allModels[model]) {
+                                allModels[model] = { count: 0, revenue: 0 };
+                            }
+                            allModels[model].count += stats.count;
+                            allModels[model].revenue += stats.revenue;
+                        });
+                    });
+                    topModels = Object.entries(allModels)
+                        .sort((a, b) => b[1].count - a[1].count)
+                        .slice(0, 15);
+                } else {
+                    // Filter by specific grade
+                    const gradeStats = modelStatsByGrade[gradeView] || {};
+                    topModels = Object.entries(gradeStats)
+                        .sort((a, b) => b[1].count - a[1].count)
+                        .slice(0, 15);
+                }
+
+                // Customer analytics with detailed tracking - using customer order data
+                const customerStats = {};
+
+                // Build customer stats from customerData (order quantities) instead of IMEI data
+                customerData.forEach(row => {
+                    if (row.COMPANY_NAME) {
+                        const name = row.COMPANY_NAME;
+                        if (!customerStats[name]) {
+                            customerStats[name] = {
+                                count: 0,
+                                revenue: 0,
+                                models: new Set(),
+                                orderDates: [],
+                                orders: [], // Detailed order info
+                                modelBreakdown: {}, // Units by model
+                                weeklyData: {}, // Revenue by week
+                                dayOfWeekData: {} // Units by day of week
+                            };
+                        }
+
+                        const units = parseInt(row.UNITS) || 0;
+                        const avgPrice = parseFloat(row.AVG_PRICE) || 0;
+                        const orderRevenue = units * avgPrice;
+
+                        customerStats[name].count += units;
+                        customerStats[name].revenue += orderRevenue;
+                        customerStats[name].models.add(`${row.MODEL} ${row.GB}`);
+
+                        // Track detailed order info
+                        if (row.QBO_TRANSACTION_DATE) {
+                            const date = new Date(row.QBO_TRANSACTION_DATE);
+                            if (!isNaN(date.getTime())) {
+                                customerStats[name].orderDates.push(date);
+                                customerStats[name].orders.push({
+                                    date: date,
+                                    model: `${row.MODEL} ${row.GB}`,
+                                    price: avgPrice,
+                                    invno: row.INVNO,
+                                    grade: normalizeGrade(row.INVTYPE),
+                                    units: units
+                                });
+
+                                // Track model breakdown
+                                const modelKey = `${row.MODEL} ${row.GB}`;
+                                if (!customerStats[name].modelBreakdown[modelKey]) {
+                                    customerStats[name].modelBreakdown[modelKey] = { count: 0, revenue: 0 };
+                                }
+                                customerStats[name].modelBreakdown[modelKey].count += units;
+                                customerStats[name].modelBreakdown[modelKey].revenue += orderRevenue;
+
+                                // Track weekly data
+                                const weekKey = getWeekKey(date);
+                                if (!customerStats[name].weeklyData[weekKey]) {
+                                    customerStats[name].weeklyData[weekKey] = { units: 0, revenue: 0 };
+                                }
+                                customerStats[name].weeklyData[weekKey].units += units;
+                                customerStats[name].weeklyData[weekKey].revenue += orderRevenue;
+
+                                // Track day of week
+                                const dayOfWeek = date.getDay(); // 0=Sunday, 6=Saturday
+                                if (!customerStats[name].dayOfWeekData[dayOfWeek]) {
+                                    customerStats[name].dayOfWeekData[dayOfWeek] = 0;
+                                }
+                                customerStats[name].dayOfWeekData[dayOfWeek] += units;
+                            }
+                        }
+                    }
+                });
+
+                // Helper function to get week key (YYYY-WW format)
+                function getWeekKey(date) {
+                    const year = date.getFullYear();
+                    const startOfYear = new Date(year, 0, 1);
+                    const days = Math.floor((date - startOfYear) / (24 * 60 * 60 * 1000));
+                    const week = Math.ceil((days + startOfYear.getDay() + 1) / 7);
+                    return `${year}-W${String(week).padStart(2, '0')}`;
+                }
+
+                const topCustomers = Object.entries(customerStats)
+                    .map(([name, stats]) => {
+                        // Calculate average days between UNIQUE order dates
+                        let avgDaysBetweenOrders = null;
+                        let daysSinceLastOrder = null;
+                        let uniqueDates = [];
+
+                        if (stats.orderDates.length > 0) {
+                            // Get unique dates only (remove duplicates from same-day orders)
+                            const uniqueDateStrings = new Set(
+                                stats.orderDates.map(date => date.toISOString().split('T')[0])
+                            );
+                            uniqueDates = Array.from(uniqueDateStrings)
+                                .map(dateStr => new Date(dateStr))
+                                .sort((a, b) => a - b);
+
+                            // Calculate days since last order
+                            const lastOrderDate = uniqueDates[uniqueDates.length - 1];
+                            daysSinceLastOrder = Math.floor((new Date() - lastOrderDate) / (1000 * 60 * 60 * 24));
+
+                            // Need at least 2 unique order dates to calculate interval
+                            if (uniqueDates.length > 1) {
+                                const intervals = [];
+                                for (let i = 1; i < uniqueDates.length; i++) {
+                                    const daysDiff = (uniqueDates[i] - uniqueDates[i-1]) / (1000 * 60 * 60 * 24);
+                                    intervals.push(daysDiff);
+                                }
+                                avgDaysBetweenOrders = intervals.reduce((sum, val) => sum + val, 0) / intervals.length;
+                            }
+                        }
+
+                        // Calculate trend (compare last 4 weeks vs previous 4 weeks)
+                        let trend = 'stable';
+                        const sortedWeeks = Object.keys(stats.weeklyData).sort();
+                        if (sortedWeeks.length >= 4) {
+                            const recentWeeks = sortedWeeks.slice(-4);
+                            const previousWeeks = sortedWeeks.slice(-8, -4);
+
+                            if (previousWeeks.length > 0) {
+                                const recentRevenue = recentWeeks.reduce((sum, week) =>
+                                    sum + stats.weeklyData[week].revenue, 0);
+                                const previousRevenue = previousWeeks.reduce((sum, week) =>
+                                    sum + stats.weeklyData[week].revenue, 0);
+
+                                const change = ((recentRevenue - previousRevenue) / previousRevenue) * 100;
+                                if (change > 10) trend = 'increasing';
+                                else if (change < -10) trend = 'decreasing';
+                            }
+                        }
+
+                        // Calculate average order size
+                        const avgOrderSize = uniqueDates.length > 0 ? stats.count / uniqueDates.length : 0;
+                        const avgOrderValue = uniqueDates.length > 0 ? stats.revenue / uniqueDates.length : 0;
+
+                        return {
+                            name,
+                            count: stats.count,
+                            revenue: stats.revenue,
+                            modelCount: stats.models.size,
+                            avgDaysBetweenOrders,
+                            daysSinceLastOrder,
+                            uniqueOrderDates: uniqueDates.length,
+                            trend,
+                            avgOrderSize: Math.round(avgOrderSize),
+                            avgOrderValue: Math.round(avgOrderValue),
+                            // Store full stats for profile view
+                            fullStats: stats
+                        };
+                    })
+                    .sort((a, b) => b.revenue - a.revenue)
+                    .slice(0, 25); // Expand to 25 customers
+
+                // Bottom performers for re-engagement - sorted by value + inactivity
+                const lowPerformers = Object.entries(customerStats)
+                    .map(([name, stats]) => {
+                        const uniqueDateStrings = new Set(
+                            stats.orderDates.map(date => date.toISOString().split('T')[0])
+                        );
+                        const uniqueDates = Array.from(uniqueDateStrings)
+                            .map(dateStr => new Date(dateStr))
+                            .sort((a, b) => a - b);
+
+                        const lastOrderDate = uniqueDates[uniqueDates.length - 1];
+                        const daysSinceLastOrder = Math.floor((new Date() - lastOrderDate) / (1000 * 60 * 60 * 24));
+
+                        // Calculate priority score: revenue value weighted by inactivity
+                        // High revenue + longer inactivity = higher priority
+                        const revenueScore = stats.revenue / 1000; // Normalize revenue
+                        const inactivityMultiplier = daysSinceLastOrder / 30; // Multiply by months inactive
+                        const priorityScore = revenueScore * inactivityMultiplier;
+
+                        return {
+                            name,
+                            count: stats.count,
+                            revenue: stats.revenue,
+                            daysSinceLastOrder,
+                            lastOrderDate: lastOrderDate.toISOString().split('T')[0],
+                            modelCount: stats.models.size,
+                            priorityScore
+                        };
+                    })
+                    .filter(c => c.daysSinceLastOrder > 30) // Haven't ordered in 30+ days
+                    .sort((a, b) => b.priorityScore - a.priorityScore) // Sort by priority score (revenue × inactivity)
+                    .slice(0, 25);
+
+                // Invtype distribution with normalized grades
+                const invtypeStats = {};
+                filteredData.forEach(row => {
+                    const type = normalizeGrade(row.invtype);
+                    if (!invtypeStats[type]) {
+                        invtypeStats[type] = { count: 0, revenue: 0 };
+                    }
+                    invtypeStats[type].count++;
+                    invtypeStats[type].revenue += parseFloat(row.price) || 0;
+                });
+
+                return {
+                    totalUnits,
+                    totalRevenue,
+                    avgPrice,
+                    unitsByDate,
+                    revenueByDate,
+                    topModels,
+                    invtypeStats,
+                    topCustomers,
+                    lowPerformers
+                };
+            }, [filteredData, customerLookup, gradeView, normalizeGrade]);
+
+            const uniqueModels = useMemo(() => {
+                return [...new Set(data.map(row => row.model))].sort();
+            }, [data]);
+
+            const uniqueInvtypes = useMemo(() => {
+                return [...new Set(data.map(row => row.invtype))].sort();
+            }, [data]);
+
+            useEffect(() => {
+                if (!loading && filteredData.length > 0) {
+                    renderCharts();
+                }
+            }, [filteredData, loading, analytics]);
+
+            const renderCharts = () => {
+                // Add a small delay to ensure DOM is ready
+                setTimeout(() => {
+                    // Daily Units Chart
+                    const dailyUnitsCanvas = document.getElementById('dailyUnitsChart');
+                    if (dailyUnitsCanvas) {
+                        const ctx = dailyUnitsCanvas.getContext('2d');
+                        if (window.dailyUnitsChart && typeof window.dailyUnitsChart.destroy === 'function') {
+                            window.dailyUnitsChart.destroy();
+                        }
+
+                    const sortedDates = Object.keys(analytics.unitsByDate).sort();
+
+                    window.dailyUnitsChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: sortedDates,
+                            datasets: [{
+                                label: 'Units Sold',
+                                data: sortedDates.map(date => analytics.unitsByDate[date]),
+                                borderColor: '#f7931e',
+                                backgroundColor: 'rgba(247, 147, 30, 0.1)',
+                                borderWidth: 3,
+                                fill: true,
+                                tension: 0.4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    grid: { color: '#2a3555' },
+                                    ticks: { color: '#8892b0' }
+                                },
+                                x: {
+                                    grid: { color: '#2a3555' },
+                                    ticks: {
+                                        color: '#8892b0',
+                                        maxRotation: 45,
+                                        minRotation: 45
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                    // Revenue Chart
+                    const revenueCanvas = document.getElementById('revenueChart');
+                    if (revenueCanvas) {
+                        const ctx = revenueCanvas.getContext('2d');
+                        if (window.revenueChart && typeof window.revenueChart.destroy === 'function') {
+                            window.revenueChart.destroy();
+                        }
+
+                    const sortedDates = Object.keys(analytics.revenueByDate).sort();
+
+                    window.revenueChart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: sortedDates,
+                            datasets: [{
+                                label: 'Revenue ($)',
+                                data: sortedDates.map(date => analytics.revenueByDate[date]),
+                                backgroundColor: 'rgba(109, 213, 237, 0.8)',
+                                borderColor: '#6dd5ed',
+                                borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    grid: { color: '#2a3555' },
+                                    ticks: {
+                                        color: '#8892b0',
+                                        callback: (value) => '$' + value.toLocaleString()
+                                    }
+                                },
+                                x: {
+                                    grid: { color: '#2a3555' },
+                                    ticks: {
+                                        color: '#8892b0',
+                                        maxRotation: 45,
+                                        minRotation: 45
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                    // Top Models Chart
+                    const modelsCanvas = document.getElementById('topModelsChart');
+                    if (modelsCanvas) {
+                        const ctx = modelsCanvas.getContext('2d');
+                        if (window.topModelsChart && typeof window.topModelsChart.destroy === 'function') {
+                            window.topModelsChart.destroy();
+                        }
+
+                    window.topModelsChart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: analytics.topModels.map(([model]) => model),
+                            datasets: [{
+                                label: 'Units Sold',
+                                data: analytics.topModels.map(([, stats]) => stats.count),
+                                backgroundColor: 'rgba(0, 255, 136, 0.8)',
+                                borderColor: '#00ff88',
+                                borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            indexAxis: 'y',
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                x: {
+                                    beginAtZero: true,
+                                    grid: { color: '#2a3555' },
+                                    ticks: { color: '#8892b0' }
+                                },
+                                y: {
+                                    grid: { color: '#2a3555' },
+                                    ticks: { color: '#8892b0' }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                    // Invtype Distribution Chart
+                    const invtypeCanvas = document.getElementById('invtypeChart');
+                    if (invtypeCanvas) {
+                        const ctx = invtypeCanvas.getContext('2d');
+                        if (window.invtypeChart && typeof window.invtypeChart.destroy === 'function') {
+                            window.invtypeChart.destroy();
+                        }
+
+                    window.invtypeChart = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: Object.keys(analytics.invtypeStats),
+                            datasets: [{
+                                data: Object.values(analytics.invtypeStats).map(s => s.count),
+                                backgroundColor: [
+                                    '#f7931e',
+                                    '#6dd5ed',
+                                    '#00ff88',
+                                    '#ff6b6b',
+                                    '#8892b0',
+                                    '#a78bfa',
+                                    '#fbbf24'
+                                ]
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'right',
+                                    labels: { color: '#e0e6ed' }
+                                }
+                            }
+                        }
+                    });
+                }
+                }, 100); // End setTimeout
+            };
+
+            if (loading) {
+                return <div className="loading-spinner">Loading Analytics...</div>;
+            }
+
+            return (
+                <>
+                    <div className="bloomberg-header">
+                        <div className="logo">OUTBOUND ANALYTICS</div>
+                        <div className="live-indicator">
+                            <div className="pulse"></div>
+                            <span>LIVE DATA</span>
+                        </div>
+                    </div>
+
+                    <div className="dashboard-container">
+                        <div className="metrics-grid">
+                            <div className="metric-card">
+                                <div className="metric-label">Total Units</div>
+                                <div className="metric-value">{analytics.totalUnits.toLocaleString()}</div>
+                                <div className="metric-change positive">
+                                    ↑ {data.length.toLocaleString()} Total in DB
+                                </div>
+                            </div>
+
+                            <div className="metric-card">
+                                <div className="metric-label">Total Revenue</div>
+                                <div className="metric-value">${analytics.totalRevenue.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
+                                <div className="metric-change positive">
+                                    ↑ Active Period
+                                </div>
+                            </div>
+
+                            <div className="metric-card">
+                                <div className="metric-label">Avg Price</div>
+                                <div className="metric-value">${analytics.avgPrice.toFixed(2)}</div>
+                                <div className="metric-change">
+                                    Per Unit
+                                </div>
+                            </div>
+
+                            <div className="metric-card">
+                                <div className="metric-label">Unique Models</div>
+                                <div className="metric-value">{uniqueModels.length}</div>
+                                <div className="metric-change">
+                                    Active SKUs
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="filters-section">
+                            <div className="filters-title">Filters & Controls</div>
+                            <div className="filters-grid">
+                                <div className="filter-group">
+                                    <label className="filter-label">Date Range</label>
+                                    <select
+                                        value={filters.dateRange}
+                                        onChange={(e) => setFilters({...filters, dateRange: e.target.value})}
+                                    >
+                                        <option value="all">All Time</option>
+                                        <option value="today">Today</option>
+                                        <option value="week">Last 7 Days</option>
+                                        <option value="month">Last 30 Days</option>
+                                        <option value="custom">Custom Range</option>
+                                    </select>
+                                </div>
+
+                                {filters.dateRange === 'custom' && (
+                                    <>
+                                        <div className="filter-group">
+                                            <label className="filter-label">Start Date</label>
+                                            <input
+                                                type="date"
+                                                value={filters.startDate}
+                                                onChange={(e) => setFilters({...filters, startDate: e.target.value})}
+                                            />
+                                        </div>
+                                        <div className="filter-group">
+                                            <label className="filter-label">End Date</label>
+                                            <input
+                                                type="date"
+                                                value={filters.endDate}
+                                                onChange={(e) => setFilters({...filters, endDate: e.target.value})}
+                                            />
+                                        </div>
+                                    </>
+                                )}
+
+                                <div className="filter-group">
+                                    <label className="filter-label">Model</label>
+                                    <select
+                                        value={filters.model}
+                                        onChange={(e) => setFilters({...filters, model: e.target.value})}
+                                    >
+                                        <option value="all">All Models</option>
+                                        {uniqueModels.map(model => (
+                                            <option key={model} value={model}>{model}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="filter-group">
+                                    <label className="filter-label">Inventory Type</label>
+                                    <select
+                                        value={filters.invtype}
+                                        onChange={(e) => setFilters({...filters, invtype: e.target.value})}
+                                    >
+                                        <option value="all">All Types</option>
+                                        {uniqueInvtypes.map(type => (
+                                            <option key={type} value={type}>{type}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="charts-grid">
+                            <div className="chart-card full-width">
+                                <div className="chart-title">Daily Units Sold</div>
+                                <div className="chart-container">
+                                    <canvas id="dailyUnitsChart"></canvas>
+                                </div>
+                            </div>
+
+                            <div className="chart-card">
+                                <div className="chart-title">Revenue by Date</div>
+                                <div className="chart-container">
+                                    <canvas id="revenueChart"></canvas>
+                                </div>
+                            </div>
+
+                            <div className="chart-card">
+                                <div className="chart-title">Top 10 Models by Units</div>
+                                <div className="chart-container">
+                                    <canvas id="topModelsChart"></canvas>
+                                </div>
+                            </div>
+
+                            <div className="chart-card">
+                                <div className="chart-title">Inventory Type Distribution</div>
+                                <div className="chart-container">
+                                    <canvas id="invtypeChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="table-container">
+                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
+                                <div className="chart-title" style={{marginBottom: 0}}>
+                                    Top Model Rankings - {gradeView === 'all' ? 'All Grades' : gradeView}
+                                </div>
+                                <div style={{display: 'flex', gap: '10px', flexWrap: 'wrap'}}>
+                                    <button
+                                        onClick={() => setGradeView('all')}
+                                        style={{
+                                            padding: '8px 16px',
+                                            background: gradeView === 'all' ? '#f7931e' : '#2a3555',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            color: '#e0e6ed',
+                                            cursor: 'pointer',
+                                            fontSize: '12px',
+                                            fontWeight: '600',
+                                            transition: 'all 0.3s'
+                                        }}
+                                    >ALL</button>
+                                    <button
+                                        onClick={() => setGradeView('A GRADE')}
+                                        style={{
+                                            padding: '8px 16px',
+                                            background: gradeView === 'A GRADE' ? '#00ff88' : '#2a3555',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            color: gradeView === 'A GRADE' ? '#0a0e27' : '#e0e6ed',
+                                            cursor: 'pointer',
+                                            fontSize: '12px',
+                                            fontWeight: '600',
+                                            transition: 'all 0.3s'
+                                        }}
+                                    >A GRADE</button>
+                                    <button
+                                        onClick={() => setGradeView('RAW')}
+                                        style={{
+                                            padding: '8px 16px',
+                                            background: gradeView === 'RAW' ? '#8892b0' : '#2a3555',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            color: gradeView === 'RAW' ? '#0a0e27' : '#e0e6ed',
+                                            cursor: 'pointer',
+                                            fontSize: '12px',
+                                            fontWeight: '600',
+                                            transition: 'all 0.3s'
+                                        }}
+                                    >RAW</button>
+                                    <button
+                                        onClick={() => setGradeView('MIXED')}
+                                        style={{
+                                            padding: '8px 16px',
+                                            background: gradeView === 'MIXED' ? '#f7931e' : '#2a3555',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            color: gradeView === 'MIXED' ? '#0a0e27' : '#e0e6ed',
+                                            cursor: 'pointer',
+                                            fontSize: '12px',
+                                            fontWeight: '600',
+                                            transition: 'all 0.3s'
+                                        }}
+                                    >MIXED</button>
+                                    <button
+                                        onClick={() => setGradeView('FALLOUT')}
+                                        style={{
+                                            padding: '8px 16px',
+                                            background: gradeView === 'FALLOUT' ? '#ff6b6b' : '#2a3555',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            color: gradeView === 'FALLOUT' ? '#0a0e27' : '#e0e6ed',
+                                            cursor: 'pointer',
+                                            fontSize: '12px',
+                                            fontWeight: '600',
+                                            transition: 'all 0.3s'
+                                        }}
+                                    >FALLOUT</button>
+                                    <button
+                                        onClick={() => setGradeView('LOCKED')}
+                                        style={{
+                                            padding: '8px 16px',
+                                            background: gradeView === 'LOCKED' ? '#6dd5ed' : '#2a3555',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            color: gradeView === 'LOCKED' ? '#0a0e27' : '#e0e6ed',
+                                            cursor: 'pointer',
+                                            fontSize: '12px',
+                                            fontWeight: '600',
+                                            transition: 'all 0.3s'
+                                        }}
+                                    >LOCKED</button>
+                                </div>
+                            </div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Rank</th>
+                                        <th>Model + Capacity</th>
+                                        <th>Units Sold</th>
+                                        <th>Total Revenue</th>
+                                        <th>Avg Price</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {analytics.topModels.length > 0 ? (
+                                        analytics.topModels.map(([model, stats], index) => (
+                                            <tr key={model}>
+                                                <td>#{index + 1}</td>
+                                                <td style={{fontWeight: '600'}}>{model}</td>
+                                                <td>{stats.count.toLocaleString()}</td>
+                                                <td>${stats.revenue.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                                                <td>${(stats.revenue / stats.count).toFixed(2)}</td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="5" style={{textAlign: 'center', color: '#8892b0'}}>
+                                                No data available for {gradeView}
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="table-container" style={{marginTop: '30px'}}>
+                            <div className="chart-title">Top 25 Customers by Revenue</div>
+
+                            <div className="trend-legend">
+                                <span className="trend-legend-title">Legend:</span>
+                                <div className="trend-legend-item">
+                                    <span className="trend-legend-icon" style={{color: '#00ff88'}}>↑</span>
+                                    <span className="trend-legend-label">Growing</span>
+                                    <span className="trend-legend-description">(Revenue up 10%+ in last 4 weeks)</span>
+                                </div>
+                                <div className="trend-legend-item">
+                                    <span className="trend-legend-icon" style={{color: '#8892b0'}}>→</span>
+                                    <span className="trend-legend-label">Stable</span>
+                                    <span className="trend-legend-description">(Revenue change within ±10%)</span>
+                                </div>
+                                <div className="trend-legend-item">
+                                    <span className="trend-legend-icon" style={{color: '#ff6b6b'}}>↓</span>
+                                    <span className="trend-legend-label">Declining</span>
+                                    <span className="trend-legend-description">(Revenue down 10%+ in last 4 weeks)</span>
+                                </div>
+                            </div>
+
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Rank</th>
+                                        <th>Customer Name</th>
+                                        <th>Trend</th>
+                                        <th>Units</th>
+                                        <th>Orders</th>
+                                        <th>Total Revenue</th>
+                                        <th>Avg Order Size</th>
+                                        <th>Avg Order Value</th>
+                                        <th>Days Since Last</th>
+                                        <th>Avg Days Between</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {analytics.topCustomers && analytics.topCustomers.length > 0 ? (
+                                        analytics.topCustomers.map((customer, index) => (
+                                            <tr key={customer.name}>
+                                                <td>#{index + 1}</td>
+                                                <td>
+                                                    <span
+                                                        onClick={() => setSelectedCustomer(customer)}
+                                                        style={{
+                                                            fontWeight: '600',
+                                                            color: '#6dd5ed',
+                                                            cursor: 'pointer',
+                                                            textDecoration: 'underline'
+                                                        }}
+                                                    >
+                                                        {customer.name}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    {customer.trend === 'increasing' && (
+                                                        <span style={{color: '#00ff88'}}>↑ Growing</span>
+                                                    )}
+                                                    {customer.trend === 'decreasing' && (
+                                                        <span style={{color: '#ff6b6b'}}>↓ Declining</span>
+                                                    )}
+                                                    {customer.trend === 'stable' && (
+                                                        <span style={{color: '#8892b0'}}>→ Stable</span>
+                                                    )}
+                                                </td>
+                                                <td>{customer.count.toLocaleString()}</td>
+                                                <td>{customer.uniqueOrderDates || 0}</td>
+                                                <td>${customer.revenue.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                                                <td>{customer.avgOrderSize} units</td>
+                                                <td>${customer.avgOrderValue.toLocaleString()}</td>
+                                                <td>
+                                                    <span style={{
+                                                        color: customer.daysSinceLastOrder < 7 ? '#00ff88' :
+                                                               customer.daysSinceLastOrder < 30 ? '#f7931e' :
+                                                               customer.daysSinceLastOrder < 60 ? '#ff9f40' : '#ff6b6b'
+                                                    }}>
+                                                        {customer.daysSinceLastOrder} days
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    {customer.avgDaysBetweenOrders !== null ? (
+                                                        <span style={{color: '#8892b0'}}>
+                                                            {customer.avgDaysBetweenOrders.toFixed(0)} days
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{color: '#8892b0'}}>N/A</span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="10" style={{textAlign: 'center', color: '#8892b0'}}>
+                                                Loading customer data...
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="table-container" style={{marginTop: '30px', border: '2px solid #ff6b6b'}}>
+                            <div style={{marginBottom: '15px'}}>
+                                <div className="chart-title" style={{color: '#ff6b6b', marginBottom: '5px'}}>
+                                    ⚠️ Re-Engagement Targets - Inactive Customers (30+ Days)
+                                </div>
+                                <div style={{fontSize: '13px', color: '#8892b0'}}>
+                                    Sorted by priority: High-value customers with recent inactivity appear first
+                                </div>
+                            </div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Priority Rank</th>
+                                        <th>Customer Name</th>
+                                        <th>Historical Revenue</th>
+                                        <th>Historical Units</th>
+                                        <th>Days Since Last Order</th>
+                                        <th>Last Order Date</th>
+                                        <th>Models Purchased</th>
+                                        <th>Risk Level</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {analytics.lowPerformers && analytics.lowPerformers.length > 0 ? (
+                                        analytics.lowPerformers.map((customer, index) => {
+                                            const priority = customer.daysSinceLastOrder > 180 ? 'HIGH' :
+                                                           customer.daysSinceLastOrder > 90 ? 'MEDIUM' : 'LOW';
+                                            const priorityColor = priority === 'HIGH' ? '#ff6b6b' :
+                                                                priority === 'MEDIUM' ? '#f7931e' : '#8892b0';
+
+                                            // Determine rank badge color based on position
+                                            const rankColor = index < 5 ? '#ff6b6b' : index < 15 ? '#f7931e' : '#8892b0';
+
+                                            return (
+                                                <tr key={customer.name} style={{borderLeft: `4px solid ${rankColor}`}}>
+                                                    <td>
+                                                        <span style={{
+                                                            fontWeight: '700',
+                                                            fontSize: '16px',
+                                                            color: rankColor
+                                                        }}>
+                                                            #{index + 1}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{fontWeight: '600'}}>{customer.name}</td>
+                                                    <td>
+                                                        <span style={{fontWeight: '700', color: '#f7931e'}}>
+                                                            ${customer.revenue.toLocaleString(undefined, {maximumFractionDigits: 0})}
+                                                        </span>
+                                                    </td>
+                                                    <td>{customer.count.toLocaleString()}</td>
+                                                    <td>
+                                                        <span style={{
+                                                            color: customer.daysSinceLastOrder > 90 ? '#ff6b6b' : '#f7931e',
+                                                            fontWeight: '600'
+                                                        }}>
+                                                            {customer.daysSinceLastOrder} days
+                                                        </span>
+                                                    </td>
+                                                    <td style={{fontSize: '12px', color: '#8892b0'}}>{customer.lastOrderDate}</td>
+                                                    <td>{customer.modelCount}</td>
+                                                    <td>
+                                                        <span style={{
+                                                            color: priorityColor,
+                                                            fontWeight: '700',
+                                                            padding: '4px 8px',
+                                                            background: `${priorityColor}20`,
+                                                            borderRadius: '4px',
+                                                            fontSize: '11px'
+                                                        }}>
+                                                            {priority}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="8" style={{textAlign: 'center', color: '#00ff88'}}>
+                                                All customers are active! 🎉
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Customer Profile Modal */}
+                        {selectedCustomer && (
+                            <div className="modal-overlay" onClick={() => setSelectedCustomer(null)}>
+                                <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                                    <button className="modal-close" onClick={() => setSelectedCustomer(null)}>×</button>
+
+                                    <div className="profile-header">
+                                        <div className="profile-name">{selectedCustomer.name}</div>
+                                        <div style={{
+                                            display: 'inline-block',
+                                            padding: '6px 12px',
+                                            background: selectedCustomer.trend === 'increasing' ? '#00ff8820' :
+                                                       selectedCustomer.trend === 'decreasing' ? '#ff6b6b20' : '#8892b020',
+                                            color: selectedCustomer.trend === 'increasing' ? '#00ff88' :
+                                                  selectedCustomer.trend === 'decreasing' ? '#ff6b6b' : '#8892b0',
+                                            borderRadius: '6px',
+                                            fontWeight: '600'
+                                        }}>
+                                            {selectedCustomer.trend === 'increasing' ? '↑ Growing Account' :
+                                             selectedCustomer.trend === 'decreasing' ? '↓ Declining Account' : '→ Stable Account'}
+                                        </div>
+
+                                        <div className="profile-metrics">
+                                            <div className="profile-metric">
+                                                <div className="profile-metric-label">Total Units</div>
+                                                <div className="profile-metric-value">{selectedCustomer.count.toLocaleString()}</div>
+                                            </div>
+                                            <div className="profile-metric">
+                                                <div className="profile-metric-label">Total Revenue</div>
+                                                <div className="profile-metric-value">${selectedCustomer.revenue.toLocaleString()}</div>
+                                            </div>
+                                            <div className="profile-metric">
+                                                <div className="profile-metric-label">Total Orders</div>
+                                                <div className="profile-metric-value">{selectedCustomer.uniqueOrderDates}</div>
+                                            </div>
+                                            <div className="profile-metric">
+                                                <div className="profile-metric-label">Avg Order Size</div>
+                                                <div className="profile-metric-value">{selectedCustomer.avgOrderSize} units</div>
+                                            </div>
+                                            <div className="profile-metric">
+                                                <div className="profile-metric-label">Avg Order Value</div>
+                                                <div className="profile-metric-value">${selectedCustomer.avgOrderValue.toLocaleString()}</div>
+                                            </div>
+                                            <div className="profile-metric" style={{
+                                                borderLeftColor: selectedCustomer.daysSinceLastOrder < 30 ? '#00ff88' : '#ff6b6b'
+                                            }}>
+                                                <div className="profile-metric-label">Days Since Last Order</div>
+                                                <div className="profile-metric-value" style={{
+                                                    color: selectedCustomer.daysSinceLastOrder < 30 ? '#00ff88' : '#ff6b6b'
+                                                }}>
+                                                    {selectedCustomer.daysSinceLastOrder}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {selectedCustomer.fullStats && (
+                                        <>
+                                            <div className="profile-section">
+                                                <div className="profile-section-title">Top Models Purchased</div>
+                                                <table style={{width: '100%'}}>
+                                                    <thead>
+                                                        <tr>
+                                                            <th style={{textAlign: 'left'}}>Model</th>
+                                                            <th>Units</th>
+                                                            <th>Revenue</th>
+                                                            <th>Avg Price</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {Object.entries(selectedCustomer.fullStats.modelBreakdown)
+                                                            .sort((a, b) => b[1].count - a[1].count)
+                                                            .slice(0, 10)
+                                                            .map(([model, stats]) => (
+                                                                <tr key={model}>
+                                                                    <td style={{fontWeight: '600'}}>{model}</td>
+                                                                    <td>{stats.count.toLocaleString()}</td>
+                                                                    <td>${stats.revenue.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                                                                    <td>${(stats.revenue / stats.count).toFixed(2)}</td>
+                                                                </tr>
+                                                            ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            <div className="profile-section">
+                                                <div className="profile-section-title">Purchasing Patterns</div>
+                                                <div style={{
+                                                    display: 'grid',
+                                                    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                                                    gap: '20px'
+                                                }}>
+                                                    <div>
+                                                        <h4 style={{color: '#8892b0', marginBottom: '10px'}}>Day of Week Analysis</h4>
+                                                        {selectedCustomer.fullStats.dayOfWeekData && (
+                                                            <div>
+                                                                {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day, index) => {
+                                                                    const units = selectedCustomer.fullStats.dayOfWeekData[index] || 0;
+                                                                    const maxUnits = Math.max(...Object.values(selectedCustomer.fullStats.dayOfWeekData));
+                                                                    const percentage = maxUnits > 0 ? (units / maxUnits) * 100 : 0;
+                                                                    return (
+                                                                        <div key={day} style={{marginBottom: '8px'}}>
+                                                                            <div style={{
+                                                                                display: 'flex',
+                                                                                justifyContent: 'space-between',
+                                                                                fontSize: '12px',
+                                                                                marginBottom: '4px'
+                                                                            }}>
+                                                                                <span>{day}</span>
+                                                                                <span>{units} units</span>
+                                                                            </div>
+                                                                            <div style={{
+                                                                                width: '100%',
+                                                                                height: '6px',
+                                                                                background: '#0f1423',
+                                                                                borderRadius: '3px',
+                                                                                overflow: 'hidden'
+                                                                            }}>
+                                                                                <div style={{
+                                                                                    width: `${percentage}%`,
+                                                                                    height: '100%',
+                                                                                    background: percentage > 50 ? '#00ff88' : '#f7931e',
+                                                                                    transition: 'width 0.3s'
+                                                                                }}></div>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div>
+                                                        <h4 style={{color: '#8892b0', marginBottom: '10px'}}>Key Insights</h4>
+                                                        <div style={{fontSize: '14px', lineHeight: '1.8'}}>
+                                                            <div style={{marginBottom: '10px'}}>
+                                                                <span style={{color: '#6dd5ed'}}>• Frequency:</span> Orders every {' '}
+                                                                <strong style={{color: '#f7931e'}}>
+                                                                    {selectedCustomer.avgDaysBetweenOrders ?
+                                                                        selectedCustomer.avgDaysBetweenOrders.toFixed(0) : 'N/A'} days
+                                                                </strong>
+                                                            </div>
+                                                            <div style={{marginBottom: '10px'}}>
+                                                                <span style={{color: '#6dd5ed'}}>• Unique Models:</span>{' '}
+                                                                <strong>{selectedCustomer.modelCount}</strong> different variants
+                                                            </div>
+                                                            <div style={{marginBottom: '10px'}}>
+                                                                <span style={{color: '#6dd5ed'}}>• Most Active Day:</span>{' '}
+                                                                <strong>
+                                                                    {selectedCustomer.fullStats.dayOfWeekData ?
+                                                                        ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][
+                                                                            Object.entries(selectedCustomer.fullStats.dayOfWeekData)
+                                                                                .sort((a, b) => b[1] - a[1])[0]?.[0] || 0
+                                                                        ] : 'N/A'}
+                                                                </strong>
+                                                            </div>
+                                                            <div>
+                                                                <span style={{color: '#6dd5ed'}}>• Predicted Next Order:</span>{' '}
+                                                                <strong style={{
+                                                                    color: selectedCustomer.avgDaysBetweenOrders &&
+                                                                           (selectedCustomer.daysSinceLastOrder > selectedCustomer.avgDaysBetweenOrders) ?
+                                                                           '#ff6b6b' : '#00ff88'
+                                                                }}>
+                                                                    {selectedCustomer.avgDaysBetweenOrders ?
+                                                                        (selectedCustomer.daysSinceLastOrder > selectedCustomer.avgDaysBetweenOrders ?
+                                                                            'Overdue!' :
+                                                                            `${Math.max(0, Math.round(selectedCustomer.avgDaysBetweenOrders - selectedCustomer.daysSinceLastOrder))} days`
+                                                                        ) : 'Insufficient data'}
+                                                                </strong>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="profile-section">
+                                                <div className="profile-section-title">Weekly Revenue Trend</div>
+                                                <div style={{fontSize: '13px', color: '#8892b0', marginBottom: '15px'}}>
+                                                    Shows purchasing activity over time to identify strong vs slow periods
+                                                </div>
+                                                <div style={{overflowX: 'auto'}}>
+                                                    <div style={{display: 'flex', gap: '4px', minWidth: '800px', alignItems: 'flex-end', height: '200px'}}>
+                                                        {Object.entries(selectedCustomer.fullStats.weeklyData)
+                                                            .sort((a, b) => a[0].localeCompare(b[0]))
+                                                            .slice(-20)
+                                                            .map(([week, data]) => {
+                                                                const maxRevenue = Math.max(...Object.values(selectedCustomer.fullStats.weeklyData).map(d => d.revenue));
+                                                                const height = (data.revenue / maxRevenue) * 100;
+                                                                return (
+                                                                    <div key={week} style={{
+                                                                        flex: 1,
+                                                                        display: 'flex',
+                                                                        flexDirection: 'column',
+                                                                        alignItems: 'center',
+                                                                        gap: '8px'
+                                                                    }}>
+                                                                        <div style={{
+                                                                            width: '100%',
+                                                                            height: `${height}%`,
+                                                                            background: height > 70 ? '#00ff88' : height > 40 ? '#f7931e' : '#8892b0',
+                                                                            borderRadius: '4px 4px 0 0',
+                                                                            minHeight: '10px',
+                                                                            position: 'relative',
+                                                                            cursor: 'pointer'
+                                                                        }} title={`${week}: $${data.revenue.toLocaleString()}`}>
+                                                                        </div>
+                                                                        <div style={{
+                                                                            fontSize: '10px',
+                                                                            color: '#8892b0',
+                                                                            transform: 'rotate(-45deg)',
+                                                                            whiteSpace: 'nowrap'
+                                                                        }}>
+                                                                            {week.split('-')[1]}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                    </div>
+                                                </div>
+                                                <div style={{
+                                                    marginTop: '20px',
+                                                    padding: '15px',
+                                                    background: '#0f1423',
+                                                    borderRadius: '8px',
+                                                    borderLeft: '4px solid #f7931e'
+                                                }}>
+                                                    <strong style={{color: '#f7931e'}}>Sales Recommendation:</strong>
+                                                    <span style={{marginLeft: '10px', color: '#e0e6ed'}}>
+                                                        {selectedCustomer.daysSinceLastOrder > (selectedCustomer.avgDaysBetweenOrders || 30) ?
+                                                            '⚠️ This customer is overdue for an order. Reach out with special offers or check-in call.' :
+                                                            selectedCustomer.trend === 'increasing' ?
+                                                            '✅ Growing account! Consider upsell opportunities or volume discounts.' :
+                                                            selectedCustomer.trend === 'decreasing' ?
+                                                            '⚠️ Declining purchases detected. Schedule a review call to understand needs.' :
+                                                            '✓ Stable customer. Maintain regular communication and monitor for changes.'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </>
+            );
+        }
+
+        ReactDOM.render(<Dashboard />, document.getElementById('root'));
+    </script>
+</body>
+</html>

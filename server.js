@@ -732,6 +732,153 @@ app.get('/api/asn/:invoice', async (req, res) => {
   }
 });
 
+// API endpoint to fetch IMEI data from Google Sheets (outbound IMEIs sheet)
+app.get('/api/sheets/dashboard-data', async (req, res) => {
+  try {
+    if (!sheetsClient) {
+      return res.status(503).json({
+        error: 'Google Sheets not configured',
+        hint: 'Please configure GOOGLE_SHEET_ID, GOOGLE_SERVICE_ACCOUNT_EMAIL, and GOOGLE_PRIVATE_KEY_BASE64 in .env'
+      });
+    }
+
+    const sheetId = process.env.GOOGLE_SHEET_ID;
+    const sheetName = process.env.GOOGLE_SHEET_NAME || 'outbound IMEIs';
+
+    console.log(`📊 Fetching IMEI data from Google Sheets: ${sheetId}/${sheetName}...`);
+
+    // Fetch all data from the main sheet
+    const response = await sheetsClient.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: `${sheetName}!A3:J`, // Headers in row 2, data starts row 3
+    });
+
+    const rows = response.data.values || [];
+
+    if (rows.length === 0) {
+      return res.json({
+        data: [],
+        rowCount: 0,
+        message: 'No data found in sheet'
+      });
+    }
+
+    // Convert rows to objects with actual sheet headers
+    // Actual columns: imei, model, capacity, color, lock_status, graded, price, updated_at, invno, invtype
+    const data = rows.map(row => {
+      return {
+        imei: row[0] || '',
+        model: row[1] || '',
+        capacity: row[2] || '',
+        color: row[3] || '',
+        lock_status: row[4] || '',
+        grade: row[5] || '', // graded column
+        total: row[6] || '', // price column
+        date: row[7] || '', // updated_at column
+        invoice: row[8] || '', // invno column
+        invtype: row[9] || '',
+        // Additional fields for compatibility
+        customer: '', // Not in sheet, will be empty
+        tracking: '' // Not in sheet, will be empty
+      };
+    });
+
+    console.log(`✓ Successfully fetched ${data.length} IMEI rows from Google Sheets`);
+
+    // Optional limit parameter to avoid browser crashes with large datasets
+    const limit = req.query.limit ? parseInt(req.query.limit) : null;
+    const limitedData = limit ? data.slice(0, limit) : data;
+
+    if (limit) {
+      console.log(`⚠️  Limiting response to ${limit} rows (out of ${data.length})`);
+    }
+
+    res.json({
+      data: limitedData,
+      rowCount: limitedData.length,
+      totalRows: data.length,
+      limited: !!limit,
+      sheetId,
+      sheetName,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching IMEI data from Google Sheets:', error);
+    res.status(500).json({
+      error: 'Failed to fetch data from Google Sheets',
+      details: error.message
+    });
+  }
+});
+
+// API endpoint to fetch customer data from Google Sheets (raw customer data sheet)
+app.get('/api/sheets/customer-data', async (req, res) => {
+  try {
+    if (!sheetsClient) {
+      return res.status(503).json({
+        error: 'Google Sheets not configured',
+        hint: 'Please configure GOOGLE_CUSTOMER_SHEET_ID, GOOGLE_SERVICE_ACCOUNT_EMAIL, and GOOGLE_PRIVATE_KEY_BASE64 in .env'
+      });
+    }
+
+    const sheetId = process.env.GOOGLE_CUSTOMER_SHEET_ID || process.env.GOOGLE_SHEET_ID;
+    const sheetName = process.env.GOOGLE_CUSTOMER_SHEET_NAME || 'RAW CUSTOMER DATA';
+
+    console.log(`👥 Fetching customer data from Google Sheets: ${sheetId}/${sheetName}...`);
+
+    // Fetch all customer data from the sheet
+    const response = await sheetsClient.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: `${sheetName}!A2:H`, // Headers in row 1, data starts row 2 (adjust if needed)
+    });
+
+    const rows = response.data.values || [];
+
+    if (rows.length === 0) {
+      return res.json({
+        data: [],
+        rowCount: 0,
+        message: 'No customer data found in sheet'
+      });
+    }
+
+    // Convert rows to objects with headers matching customer_data_clean.csv format
+    // COMPANY_NAME,MODEL,GB,INVTYPE,UNITS,INVNO,QBO_TRANSACTION_DATE,AVG_PRICE
+    const headers = ['COMPANY_NAME', 'MODEL', 'GB', 'INVTYPE', 'UNITS', 'INVNO', 'QBO_TRANSACTION_DATE', 'AVG_PRICE'];
+    const data = rows
+      .filter((row, index) => {
+        // Skip header row if it exists (first row contains "COMPANY_NAME")
+        if (index === 0 && row[0] === 'COMPANY_NAME') return false;
+        return true;
+      })
+      .map(row => {
+        const obj = {};
+        headers.forEach((header, index) => {
+          obj[header] = row[index] || '';
+        });
+        return obj;
+      });
+
+    console.log(`✓ Successfully fetched ${data.length} customer records from Google Sheets`);
+
+    res.json({
+      data,
+      rowCount: data.length,
+      sheetId,
+      sheetName,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching customer data from Google Sheets:', error);
+    res.status(500).json({
+      error: 'Failed to fetch customer data from Google Sheets',
+      details: error.message
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -747,9 +894,16 @@ app.get('/calendar', (req, res) => {
   res.sendFile(__dirname + '/calendar.html');
 });
 
+// Serve the analytics dashboard HTML file
+app.get('/dashboard', (req, res) => {
+  res.sendFile(__dirname + '/dashboard.html');
+});
+
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📊 Dashboard: http://localhost:${PORT}`);
+  console.log(`📊 Daily Report: http://localhost:${PORT}`);
+  console.log(`📈 Analytics Dashboard: http://localhost:${PORT}/dashboard`);
+  console.log(`📅 Calendar View: http://localhost:${PORT}/calendar`);
   console.log(`🔗 API: http://localhost:${PORT}/api/orders`);
   console.log(`🔄 Cache duration: ${CACHE_DURATION / 1000} seconds`);
 

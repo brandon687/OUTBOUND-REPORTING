@@ -1,13 +1,22 @@
 # Google Sheets API Setup Guide
 
 ## Overview
-This guide will help you set up Google Sheets API access for the historical calendar view. The calendar will read data from your "outbound IMEIs" sheet with 500,000+ rows.
+This guide will help you set up Google Sheets API access for your Analytics Dashboard. The dashboard requires **TWO** Google Sheets to function:
 
-## Sheet Information
+1. **Outbound IMEIs Sheet** - Individual IMEI/device records
+2. **Raw Customer Data Sheet** - Aggregated customer order data
+
+## Required Google Sheets
+
+### Sheet 1: Outbound IMEIs
 - **Sheet URL**: https://docs.google.com/spreadsheets/d/1CbvbPLJGllfGsb4LWR1RWFktzFGLr8nNanxCz2KrCvw/edit
 - **Sheet ID**: `1CbvbPLJGllfGsb4LWR1RWFktzFGLr8nNanxCz2KrCvw`
 - **Tab Name**: `outbound IMEIs`
-- **Headers (Row 2)**: imei, model, capacity, color, lock_status, graded, price, updated_at, invno, invtype
+- **Headers (Row 1)**: imei, model, capacity, grade, total, customer, date, invoice, tracking, invtype
+
+### Sheet 2: Raw Customer Data
+- **Tab Name**: `RAW CUSTOMER DATA` (can be in same Google Sheets document or separate)
+- **Headers (Row 1)**: COMPANY_NAME, MODEL, GB, INVTYPE, UNITS, INVNO, QBO_TRANSACTION_DATE, AVG_PRICE
 
 ## Step 1: Create Google Cloud Project & Enable API
 
@@ -55,16 +64,27 @@ Add these lines to your `.env` file:
 
 ```env
 # Google Sheets API Configuration
+GOOGLE_SERVICE_ACCOUNT_EMAIL=your-service-account@project-id.iam.gserviceaccount.com
+GOOGLE_PRIVATE_KEY_BASE64=your_base64_encoded_private_key
+
+# Outbound IMEIs Sheet (for dashboard)
 GOOGLE_SHEET_ID=1CbvbPLJGllfGsb4LWR1RWFktzFGLr8nNanxCz2KrCvw
 GOOGLE_SHEET_NAME=outbound IMEIs
-GOOGLE_SERVICE_ACCOUNT_EMAIL=your-service-account@project-id.iam.gserviceaccount.com
-GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYour private key here\n-----END PRIVATE KEY-----\n"
+
+# Customer Data Sheet (for dashboard analytics)
+GOOGLE_CUSTOMER_SHEET_ID=1CbvbPLJGllfGsb4LWR1RWFktzFGLr8nNanxCz2KrCvw
+GOOGLE_CUSTOMER_SHEET_NAME=RAW CUSTOMER DATA
 ```
 
-**To get the private key:**
-1. Open the downloaded JSON file
-2. Copy the entire value of `private_key` field (including the quotes and \n characters)
-3. Paste it as shown above
+**To get the base64 encoded private key:**
+1. Use the provided encoding script:
+   ```bash
+   node encode-google-key.js path/to/your-service-account.json
+   ```
+2. Copy the `GOOGLE_PRIVATE_KEY_BASE64` value from the output
+3. Paste it into your `.env` file
+
+**Note:** If both sheets are tabs in the same Google Sheets document, `GOOGLE_CUSTOMER_SHEET_ID` can be the same as `GOOGLE_SHEET_ID`.
 
 ## Step 6: Add Credentials to Railway
 
@@ -84,9 +104,34 @@ GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYour private key here\n-----END
 
 ## Step 7: Verify Setup
 
-Once deployed, test the connection:
-- Go to: `https://your-railway-app.railway.app/api/historical/test`
-- You should see: `{ "status": "ok", "totalRows": [number], "sampleData": [...] }`
+Start your server locally:
+```bash
+node server.js
+```
+
+Test the connections:
+```bash
+# Test IMEI data endpoint
+curl http://localhost:3000/api/sheets/dashboard-data
+
+# Test customer data endpoint
+curl http://localhost:3000/api/sheets/customer-data
+
+# Test historical data (for calendar view)
+curl http://localhost:3000/api/historical/test
+
+# Diagnose connection issues
+curl http://localhost:3000/api/historical/diagnose
+```
+
+Open the dashboard in your browser:
+```
+http://localhost:3000/dashboard
+```
+
+Check the browser console for success messages:
+- ✓ "Loaded X IMEI rows from Google Sheets"
+- ✓ "Loaded X customer rows from Google Sheets"
 
 ## Security Notes
 
@@ -116,16 +161,35 @@ Once deployed, test the connection:
 
 ## Data Structure
 
-Your sheet has these columns (row 2):
+### Outbound IMEIs Sheet Columns (Row 1):
 - `imei`: Device IMEI number
 - `model`: iPhone model (e.g., "14 PRO")
 - `capacity`: Storage capacity (e.g., "256GB")
-- `color`: Device color
-- `lock_status`: UNLOCKED/LOCKED
-- `graded`: TRUE/FALSE
-- `price`: Sale price
-- `updated_at`: Date (format: YYYY-MM-DD HH:MM:SS)
-- `invno`: Invoice number (e.g., "21025")
-- `invtype`: Invoice type (e.g., "mixed")
+- `grade`: Device grade (A, B, C, etc.)
+- `total`: Sale price/total
+- `customer`: Customer name
+- `date`: Transaction date (format: YYYY-MM-DD)
+- `invoice`: Invoice number (e.g., "21142")
+- `tracking`: Tracking number
+- `invtype`: Invoice type (e.g., "mixed", "new", "refurb")
 
-The calendar view will aggregate by the `updated_at` date to show daily revenue totals.
+### Raw Customer Data Sheet Columns (Row 1):
+- `COMPANY_NAME`: Full customer/company name
+- `MODEL`: iPhone model (e.g., "11 PRO")
+- `GB`: Storage capacity (e.g., "64GB")
+- `INVTYPE`: Invoice type (e.g., "UNKNOWN", "mixed")
+- `UNITS`: Number of units in order
+- `INVNO`: Invoice number (e.g., "12891")
+- `QBO_TRANSACTION_DATE`: QuickBooks transaction date (format: YYYY-MM-DD)
+- `AVG_PRICE`: Average price per unit
+
+## Dashboard Features Using This Data
+
+The dashboard uses both sheets to provide:
+- **Top 25 Customers by Revenue** with trend analysis (Growing/Stable/Declining)
+- **Customer Analytics** including order frequency and revenue patterns
+- **Product Performance** by model and capacity
+- **Invoice Type Distribution**
+- **Re-engagement Targets** for inactive customers
+
+The trend analysis compares the last 4 weeks vs previous 4 weeks of customer revenue to categorize accounts as Growing (>10% increase), Stable (±10%), or Declining (>10% decrease).
