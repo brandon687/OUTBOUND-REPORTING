@@ -4,3 +4,20 @@ node_modules/
 *.log
 npm-debug.log*
 .vscode/
+
+# Data files (should be in Google Sheets)
+*.csv
+*.numbers
+data_clean.csv
+customer_data_clean.csv
+data.csv
+customer_data.csv
+sample_data.csv
+OUTBOUND_IMEI_DATA.csv
+
+# Reports
+DATA_ARCHITECTURE_REPORT.md
+
+# Standalone versions
+dashboard-standalone.html
+dashboard-server.js
