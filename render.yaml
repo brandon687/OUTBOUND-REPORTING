@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: outbound-reporting
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
+        sync: false
+      - key: GOOGLE_PRIVATE_KEY_BASE64
+        sync: false
+      - key: GOOGLE_SHEET_ID
+        value: 1CbvbPLJGllfGsb4LWR1RWFktzFGLr8nNanxCz2KrCvw
+      - key: GOOGLE_SHEET_NAME
+        value: outbound IMEIs
+      - key: GOOGLE_CUSTOMER_SHEET_ID
+        value: 1CbvbPLJGllfGsb4LWR1RWFktzFGLr8nNanxCz2KrCvw
+      - key: GOOGLE_CUSTOMER_SHEET_NAME
+        value: RAW CUSTOMER DATA
+      - key: NOTION_API_KEY
+        sync: false
+      - key: NOTION_DATABASE_ID
+        sync: false
