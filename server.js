@@ -695,8 +695,9 @@ app.get('/dashboard', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📈 Analytics Dashboard: http://localhost:${PORT}/dashboard`);
-  console.log(`📅 Calendar View: http://localhost:${PORT}/calendar`);
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📈 Analytics Dashboard: Available at /dashboard`);
+  console.log(`📅 Calendar View: Available at /calendar`);
   console.log(`🔗 Google Sheets API: Configured`);
+  console.log(`🌐 Ready to accept requests on all configured domains`);
 });
