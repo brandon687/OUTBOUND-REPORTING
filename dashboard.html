@@ -477,8 +477,8 @@
                     try {
                         console.log('📊 Fetching live data from Google Sheets...');
 
-                        // Fetch IMEI data (limit to 100K rows to avoid browser crashes)
-                        const imeiResponse = await fetch('/api/sheets/dashboard-data?limit=100000');
+                        // Fetch ALL IMEI data from Google Sheets
+                        const imeiResponse = await fetch('/api/sheets/dashboard-data');
 
                         // Fetch customer data
                         const customerResponse = await fetch('/api/sheets/customer-data');
