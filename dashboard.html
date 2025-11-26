@@ -478,10 +478,10 @@
                         console.log('📊 Fetching live data from Google Sheets...');
 
                         // Fetch IMEI data (limit to 100K rows to avoid browser crashes)
-                        const imeiResponse = await fetch('http://localhost:3000/api/sheets/dashboard-data?limit=100000');
+                        const imeiResponse = await fetch('/api/sheets/dashboard-data?limit=100000');
 
                         // Fetch customer data
-                        const customerResponse = await fetch('http://localhost:3000/api/sheets/customer-data');
+                        const customerResponse = await fetch('/api/sheets/customer-data');
 
                         if (!imeiResponse.ok || !customerResponse.ok) {
                             throw new Error(`HTTP error! IMEI status: ${imeiResponse.status}, Customer status: ${customerResponse.status}`);
