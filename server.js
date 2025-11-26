@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static('.'));
+// Note: express.static is moved to the end of the file to prioritize routes
 
 // Initialize Google Sheets client
 let sheetsClient = null;
@@ -693,6 +693,10 @@ app.get('/calendar', (req, res) => {
 app.get('/dashboard', (req, res) => {
   res.sendFile(__dirname + '/dashboard.html');
 });
+
+// Serve static files AFTER route handlers to prioritize explicit routes
+// This ensures / serves dashboard.html instead of any index.html or default file
+app.use(express.static('.'));
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
