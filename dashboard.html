@@ -602,7 +602,7 @@
             const [gradeView, setGradeView] = useState('all');
             const [selectedCustomer, setSelectedCustomer] = useState(null);
             const [customerProfile, setCustomerProfile] = useState(null);
-            const [dataSource, setDataSource] = useState(null); // 'snowflake', 'sheets', or 'csv'
+            const [dataSource, setDataSource] = useState(null); // 'sheets' or 'csv'
             const [error, setError] = useState(null);
             const [retrying, setRetrying] = useState(false);
 
@@ -623,24 +623,13 @@
                 fetchData();
             }, []);
 
-            // Main data fetching function with automatic fallback
+            // Main data fetching function - Google Sheets only
             const fetchData = async () => {
                 setLoading(true);
                 setError(null);
 
                 try {
-                    // Try Snowflake first (unlimited data), fallback to Google Sheets if needed
-                    console.log('🔄 Step 1: Attempting to fetch from Snowflake...');
-                    const snowflakeSuccess = await trySnowflake();
-
-                    if (snowflakeSuccess) {
-                        console.log('✅ SUCCESS: Snowflake data loaded');
-                        setDataSource('snowflake');
-                        setLoading(false);
-                        return;
-                    }
-
-                    console.log('⚠️ Step 2: Snowflake failed, trying Google Sheets...');
+                    console.log('📡 Fetching data from Google Sheets...');
                     const sheetsSuccess = await tryGoogleSheets();
 
                     if (sheetsSuccess) {
@@ -650,101 +639,21 @@
                         return;
                     }
 
-                    console.log('⚠️ Step 3: Google Sheets failed, falling back to CSV...');
+                    console.log('⚠️ Google Sheets failed, falling back to CSV...');
                     await loadFromCSV();
                     setDataSource('csv');
                     setLoading(false);
 
                 } catch (error) {
-                    console.error('❌ CRITICAL: All data sources failed:', error);
+                    console.error('❌ ERROR: Data loading failed:', error);
                     setError({
-                        title: 'All Data Sources Failed',
-                        message: 'Unable to load data from Snowflake, Google Sheets, or CSV files.',
+                        title: 'Data Loading Failed',
+                        message: 'Unable to load data from Google Sheets or CSV files.',
                         details: error.message,
                         timestamp: new Date().toISOString()
                     });
                     setDataSource('error');
                     setLoading(false);
-                }
-            };
-
-            // Try fetching from Snowflake
-            const trySnowflake = async () => {
-                try {
-                    console.log('📡 Connecting to Snowflake API...');
-                    const timeout = 10000; // 10 second timeout
-
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-                    const [imeiResponse, customerResponse] = await Promise.all([
-                        fetch('/api/snowflake/dashboard-data', { signal: controller.signal }),
-                        fetch('/api/snowflake/customer-data', { signal: controller.signal })
-                    ]);
-
-                    clearTimeout(timeoutId);
-
-                    console.log(`📊 Snowflake API Response Status: IMEI=${imeiResponse.status}, Customer=${customerResponse.status}`);
-
-                    if (!imeiResponse.ok || !customerResponse.ok) {
-                        throw new Error(`HTTP ${imeiResponse.status}/${customerResponse.status}`);
-                    }
-
-                    const imeiResult = await imeiResponse.json();
-                    const customerResult = await customerResponse.json();
-
-                    console.log('📦 Snowflake Response:', {
-                        imeiSuccess: imeiResult.success,
-                        imeiCount: imeiResult.count,
-                        customerSuccess: customerResult.success,
-                        customerCount: customerResult.count
-                    });
-
-                    if (!imeiResult.success || !customerResult.success) {
-                        throw new Error(imeiResult.details || customerResult.details || 'API returned success=false');
-                    }
-
-                    if (!imeiResult.data || imeiResult.data.length === 0) {
-                        throw new Error('No data returned from Snowflake');
-                    }
-
-                    console.log(`✓ Loaded ${imeiResult.count} IMEI rows from Snowflake`);
-                    console.log(`✓ Loaded ${customerResult.count} customer rows from Snowflake`);
-                    console.log('📄 Sample IMEI data:', imeiResult.data.slice(0, 2));
-
-                    // Transform the IMEI data
-                    const transformedData = imeiResult.data.map(row => ({
-                        imei: row.IMEI || row.imei,
-                        model: row.MODEL || row.model,
-                        capacity: row.CAPACITY || row.capacity,
-                        grade: row.GRADED || row.GRADE || row.grade,
-                        price: parseFloat(row.PRICE || row.price || row.total) || 0,
-                        customer: row.CUSTOMER || row.customer,
-                        updated_at: row.UPDATED_AT || row.updated_at || row.date,
-                        invoice: row.INVOICE_NO || row.invoice || row.INVNO,
-                        tracking: row.TRACKING || row.tracking,
-                        invtype: row.INVOICE_TYPE || row.invtype || row.INVTYPE
-                    }));
-
-                    console.log('✅ Transformed:', transformedData.length, 'rows');
-                    console.log('💰 First row price:', transformedData[0]?.price, typeof transformedData[0]?.price);
-
-                    setData(transformedData);
-                    setCustomerData(customerResult.data);
-                    return true;
-
-                } catch (error) {
-                    console.error('❌ Snowflake failed:', error.message);
-                    setError({
-                        title: 'Snowflake Connection Failed',
-                        message: error.message.includes('aborted')
-                            ? 'Connection timeout - Snowflake took too long to respond'
-                            : `Failed to connect to Snowflake: ${error.message}`,
-                        details: error.stack,
-                        timestamp: new Date().toISOString(),
-                        source: 'snowflake'
-                    });
-                    return false;
                 }
             };
 
@@ -1421,8 +1330,7 @@
                                     <div className={`data-source-indicator ${dataSource}`}>
                                         <div className="status-dot"></div>
                                         <span>
-                                            {dataSource === 'snowflake' && 'Snowflake Database'}
-                                            {dataSource === 'sheets' && 'Google Sheets (Fallback)'}
+                                            {dataSource === 'sheets' && 'Google Sheets'}
                                             {dataSource === 'csv' && 'Local CSV (Offline Mode)'}
                                             {dataSource === 'error' && 'No Data Available'}
                                         </span>
