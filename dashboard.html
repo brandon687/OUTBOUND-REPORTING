@@ -629,23 +629,23 @@
                 setError(null);
 
                 try {
-                    // Temporarily use Google Sheets as primary while Snowflake is being fixed
-                    console.log('🔄 Step 1: Attempting to fetch from Google Sheets...');
-                    const sheetsSuccess = await tryGoogleSheets();
-
-                    if (sheetsSuccess) {
-                        console.log('✅ SUCCESS: Google Sheets data loaded');
-                        setDataSource('sheets');
-                        setLoading(false);
-                        return;
-                    }
-
-                    console.log('⚠️ Step 2: Google Sheets failed, trying Snowflake...');
+                    // Try Snowflake first (unlimited data), fallback to Google Sheets if needed
+                    console.log('🔄 Step 1: Attempting to fetch from Snowflake...');
                     const snowflakeSuccess = await trySnowflake();
 
                     if (snowflakeSuccess) {
                         console.log('✅ SUCCESS: Snowflake data loaded');
                         setDataSource('snowflake');
+                        setLoading(false);
+                        return;
+                    }
+
+                    console.log('⚠️ Step 2: Snowflake failed, trying Google Sheets...');
+                    const sheetsSuccess = await tryGoogleSheets();
+
+                    if (sheetsSuccess) {
+                        console.log('✅ SUCCESS: Google Sheets data loaded');
+                        setDataSource('sheets');
                         setLoading(false);
                         return;
                     }
@@ -678,13 +678,13 @@
                     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
                     const [imeiResponse, customerResponse] = await Promise.all([
-                        fetch('/api/sheets/dashboard-data', { signal: controller.signal }),
-                        fetch('/api/sheets/customer-data', { signal: controller.signal })
+                        fetch('/api/snowflake/dashboard-data', { signal: controller.signal }),
+                        fetch('/api/snowflake/customer-data', { signal: controller.signal })
                     ]);
 
                     clearTimeout(timeoutId);
 
-                    console.log(`📊 Google Sheets API Response Status: IMEI=${imeiResponse.status}, Customer=${customerResponse.status}`);
+                    console.log(`📊 Snowflake API Response Status: IMEI=${imeiResponse.status}, Customer=${customerResponse.status}`);
 
                     if (!imeiResponse.ok || !customerResponse.ok) {
                         throw new Error(`HTTP ${imeiResponse.status}/${customerResponse.status}`);
