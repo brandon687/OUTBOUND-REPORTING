@@ -317,6 +317,151 @@
             color: #f7931e;
         }
 
+        /* Error Display Component */
+        .error-banner {
+            background: linear-gradient(135deg, #2d1515 0%, #1a0a0a 100%);
+            border: 2px solid #ff6b6b;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .error-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .error-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #ff6b6b;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .error-icon {
+            font-size: 24px;
+        }
+
+        .error-close {
+            background: none;
+            border: none;
+            color: #8892b0;
+            font-size: 24px;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .error-close:hover {
+            color: #ff6b6b;
+        }
+
+        .error-message {
+            font-size: 14px;
+            color: #e0e6ed;
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+
+        .data-source-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: rgba(109, 213, 237, 0.2);
+            border: 1px solid #6dd5ed;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #6dd5ed;
+        }
+
+        .data-source-indicator.snowflake {
+            background: rgba(109, 213, 237, 0.2);
+            border-color: #6dd5ed;
+            color: #6dd5ed;
+        }
+
+        .data-source-indicator.sheets {
+            background: rgba(0, 255, 136, 0.2);
+            border-color: #00ff88;
+            color: #00ff88;
+        }
+
+        .data-source-indicator.error {
+            background: rgba(255, 107, 107, 0.2);
+            border-color: #ff6b6b;
+            color: #ff6b6b;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: pulse 2s infinite;
+        }
+
+        .error-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .retry-button {
+            padding: 8px 16px;
+            background: #f7931e;
+            border: none;
+            border-radius: 6px;
+            color: #0a0e27;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .retry-button:hover {
+            background: #ff9f40;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(247, 147, 30, 0.4);
+        }
+
+        .retry-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .error-details {
+            background: #0f1423;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #8892b0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background: rgba(42, 53, 85, 0.3);
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
         /* Customer Profile Modal */
         .modal-overlay {
             position: fixed;
@@ -457,6 +602,9 @@
             const [gradeView, setGradeView] = useState('all');
             const [selectedCustomer, setSelectedCustomer] = useState(null);
             const [customerProfile, setCustomerProfile] = useState(null);
+            const [dataSource, setDataSource] = useState(null); // 'snowflake', 'sheets', or 'csv'
+            const [error, setError] = useState(null);
+            const [retrying, setRetrying] = useState(false);
 
             // Normalize grade names
             const normalizeGrade = (grade) => {
@@ -472,107 +620,266 @@
             };
 
             useEffect(() => {
-                // Fetch data from Snowflake API
-                const fetchData = async () => {
-                    try {
-                        console.log('📊 Fetching live data from Snowflake...');
+                fetchData();
+            }, []);
 
-                        // Fetch ALL IMEI data from Snowflake (no row limits!)
-                        const imeiResponse = await fetch('/api/snowflake/dashboard-data');
+            // Main data fetching function with automatic fallback
+            const fetchData = async () => {
+                setLoading(true);
+                setError(null);
 
-                        // Fetch customer data from Snowflake
-                        const customerResponse = await fetch('/api/snowflake/customer-data');
+                try {
+                    // Temporarily use Google Sheets as primary while Snowflake is being fixed
+                    console.log('🔄 Step 1: Attempting to fetch from Google Sheets...');
+                    const sheetsSuccess = await tryGoogleSheets();
 
-                        if (!imeiResponse.ok || !customerResponse.ok) {
-                            throw new Error(`HTTP error! IMEI status: ${imeiResponse.status}, Customer status: ${customerResponse.status}`);
-                        }
-
-                        const imeiResult = await imeiResponse.json();
-                        const customerResult = await customerResponse.json();
-
-                        if (imeiResult.error || customerResult.error || !imeiResult.success || !customerResult.success) {
-                            console.error('❌ Snowflake API error:', imeiResult.error || customerResult.error);
-                            console.log('💡 Details:', imeiResult.details || customerResult.details);
-                            // Fall back to CSV if Snowflake is not configured
-                            loadFromCSV();
-                            return;
-                        }
-
-                        console.log(`✓ Loaded ${imeiResult.count} IMEI rows from Snowflake`);
-                        console.log(`✓ Loaded ${customerResult.count} customer rows from Snowflake`);
-                        console.log('Sample IMEI data:', imeiResult.data.slice(0, 2));
-                        console.log('Sample customer data:', customerResult.data.slice(0, 2));
-
-                        // Transform the IMEI data to match expected format
-                        // Snowflake returns uppercase column names
-                        const transformedData = imeiResult.data.map(row => ({
-                            imei: row.IMEI || row.imei,
-                            model: row.MODEL || row.model,
-                            capacity: row.CAPACITY || row.capacity,
-                            grade: row.GRADED || row.GRADE || row.grade,
-                            price: parseFloat(row.PRICE || row.price || row.total) || 0,
-                            customer: row.CUSTOMER || row.customer,
-                            updated_at: row.UPDATED_AT || row.updated_at || row.date,
-                            invoice: row.INVOICE_NO || row.invoice || row.INVNO,
-                            tracking: row.TRACKING || row.tracking,
-                            invtype: row.INVOICE_TYPE || row.invtype || row.INVTYPE
-                        }));
-
-                        console.log('✅ Transformed data sample:', transformedData.slice(0, 3));
-                        console.log('✅ Total transformed rows:', transformedData.length);
-                        console.log('✅ First row price:', transformedData[0]?.price, 'type:', typeof transformedData[0]?.price);
-                        console.log('✅ First row updated_at:', transformedData[0]?.updated_at);
-
-                        setData(transformedData);
-                        setCustomerData(customerResult.data); // Use raw customer data from Google Sheets
+                    if (sheetsSuccess) {
+                        console.log('✅ SUCCESS: Google Sheets data loaded');
+                        setDataSource('sheets');
                         setLoading(false);
-
-                    } catch (error) {
-                        console.error('❌ Error fetching from Google Sheets:', error);
-                        console.log('⚠️ Falling back to CSV files...');
-                        loadFromCSV();
+                        return;
                     }
-                };
 
-                // Fallback function to load from CSV files
-                const loadFromCSV = () => {
+                    console.log('⚠️ Step 2: Google Sheets failed, trying Snowflake...');
+                    const snowflakeSuccess = await trySnowflake();
+
+                    if (snowflakeSuccess) {
+                        console.log('✅ SUCCESS: Snowflake data loaded');
+                        setDataSource('snowflake');
+                        setLoading(false);
+                        return;
+                    }
+
+                    console.log('⚠️ Step 3: Google Sheets failed, falling back to CSV...');
+                    await loadFromCSV();
+                    setDataSource('csv');
+                    setLoading(false);
+
+                } catch (error) {
+                    console.error('❌ CRITICAL: All data sources failed:', error);
+                    setError({
+                        title: 'All Data Sources Failed',
+                        message: 'Unable to load data from Snowflake, Google Sheets, or CSV files.',
+                        details: error.message,
+                        timestamp: new Date().toISOString()
+                    });
+                    setDataSource('error');
+                    setLoading(false);
+                }
+            };
+
+            // Try fetching from Snowflake
+            const trySnowflake = async () => {
+                try {
+                    console.log('📡 Connecting to Snowflake API...');
+                    const timeout = 10000; // 10 second timeout
+
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+                    const [imeiResponse, customerResponse] = await Promise.all([
+                        fetch('/api/sheets/dashboard-data', { signal: controller.signal }),
+                        fetch('/api/sheets/customer-data', { signal: controller.signal })
+                    ]);
+
+                    clearTimeout(timeoutId);
+
+                    console.log(`📊 Google Sheets API Response Status: IMEI=${imeiResponse.status}, Customer=${customerResponse.status}`);
+
+                    if (!imeiResponse.ok || !customerResponse.ok) {
+                        throw new Error(`HTTP ${imeiResponse.status}/${customerResponse.status}`);
+                    }
+
+                    const imeiResult = await imeiResponse.json();
+                    const customerResult = await customerResponse.json();
+
+                    console.log('📦 Snowflake Response:', {
+                        imeiSuccess: imeiResult.success,
+                        imeiCount: imeiResult.count,
+                        customerSuccess: customerResult.success,
+                        customerCount: customerResult.count
+                    });
+
+                    if (!imeiResult.success || !customerResult.success) {
+                        throw new Error(imeiResult.details || customerResult.details || 'API returned success=false');
+                    }
+
+                    if (!imeiResult.data || imeiResult.data.length === 0) {
+                        throw new Error('No data returned from Snowflake');
+                    }
+
+                    console.log(`✓ Loaded ${imeiResult.count} IMEI rows from Snowflake`);
+                    console.log(`✓ Loaded ${customerResult.count} customer rows from Snowflake`);
+                    console.log('📄 Sample IMEI data:', imeiResult.data.slice(0, 2));
+
+                    // Transform the IMEI data
+                    const transformedData = imeiResult.data.map(row => ({
+                        imei: row.IMEI || row.imei,
+                        model: row.MODEL || row.model,
+                        capacity: row.CAPACITY || row.capacity,
+                        grade: row.GRADED || row.GRADE || row.grade,
+                        price: parseFloat(row.PRICE || row.price || row.total) || 0,
+                        customer: row.CUSTOMER || row.customer,
+                        updated_at: row.UPDATED_AT || row.updated_at || row.date,
+                        invoice: row.INVOICE_NO || row.invoice || row.INVNO,
+                        tracking: row.TRACKING || row.tracking,
+                        invtype: row.INVOICE_TYPE || row.invtype || row.INVTYPE
+                    }));
+
+                    console.log('✅ Transformed:', transformedData.length, 'rows');
+                    console.log('💰 First row price:', transformedData[0]?.price, typeof transformedData[0]?.price);
+
+                    setData(transformedData);
+                    setCustomerData(customerResult.data);
+                    return true;
+
+                } catch (error) {
+                    console.error('❌ Snowflake failed:', error.message);
+                    setError({
+                        title: 'Snowflake Connection Failed',
+                        message: error.message.includes('aborted')
+                            ? 'Connection timeout - Snowflake took too long to respond'
+                            : `Failed to connect to Snowflake: ${error.message}`,
+                        details: error.stack,
+                        timestamp: new Date().toISOString(),
+                        source: 'snowflake'
+                    });
+                    return false;
+                }
+            };
+
+            // Try fetching from Google Sheets
+            const tryGoogleSheets = async () => {
+                try {
+                    console.log('📡 Connecting to Google Sheets API...');
+                    const timeout = 10000; // 10 second timeout
+
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+                    const [imeiResponse, customerResponse] = await Promise.all([
+                        fetch('/api/sheets/dashboard-data', { signal: controller.signal }),
+                        fetch('/api/sheets/customer-data', { signal: controller.signal })
+                    ]);
+
+                    clearTimeout(timeoutId);
+
+                    console.log(`📊 Sheets API Response Status: IMEI=${imeiResponse.status}, Customer=${customerResponse.status}`);
+
+                    if (!imeiResponse.ok || !customerResponse.ok) {
+                        throw new Error(`HTTP ${imeiResponse.status}/${customerResponse.status}`);
+                    }
+
+                    const imeiResult = await imeiResponse.json();
+                    const customerResult = await customerResponse.json();
+
+                    console.log('📦 Sheets Response:', {
+                        imeiCount: imeiResult.rowCount,
+                        customerCount: customerResult.rowCount
+                    });
+
+                    if (!imeiResult.data || imeiResult.data.length === 0) {
+                        throw new Error('No data returned from Google Sheets');
+                    }
+
+                    console.log(`✓ Loaded ${imeiResult.rowCount} IMEI rows from Google Sheets`);
+                    console.log(`✓ Loaded ${customerResult.rowCount} customer rows from Google Sheets`);
+
+                    // Transform data from Sheets format
+                    const transformedData = imeiResult.data.map(row => ({
+                        imei: row.imei,
+                        model: row.model,
+                        capacity: row.capacity,
+                        grade: row.grade,
+                        price: parseFloat(row.total) || 0,
+                        customer: row.customer,
+                        updated_at: row.date,
+                        invoice: row.invoice,
+                        tracking: row.tracking,
+                        invtype: row.invtype
+                    }));
+
+                    console.log('✅ Transformed:', transformedData.length, 'rows from Sheets');
+
+                    setData(transformedData);
+                    setCustomerData(customerResult.data);
+                    return true;
+
+                } catch (error) {
+                    console.error('❌ Google Sheets failed:', error.message);
+                    setError({
+                        title: 'Google Sheets Connection Failed',
+                        message: error.message.includes('aborted')
+                            ? 'Connection timeout - Google Sheets took too long to respond'
+                            : `Failed to connect to Google Sheets: ${error.message}`,
+                        details: error.stack,
+                        timestamp: new Date().toISOString(),
+                        source: 'sheets'
+                    });
+                    return false;
+                }
+            };
+
+            // Fallback function to load from CSV files
+            const loadFromCSV = () => {
+                return new Promise((resolve, reject) => {
+                    console.log('📁 Loading from local CSV files...');
+
                     Papa.parse('data_clean.csv', {
                         download: true,
                         header: true,
                         skipEmptyLines: true,
                         comments: true,
                         complete: (results) => {
-                            console.log('Parsed data from CSV:', results);
+                            console.log('📄 CSV parsed:', results.data.length, 'rows');
                             const cleanedData = results.data.filter(row => {
                                 const hasImei = row.imei && String(row.imei).trim().length > 10;
                                 const hasDate = row.updated_at && row.updated_at.length > 5;
                                 const hasPrice = row.price !== undefined && row.price !== null && row.price !== '';
                                 return hasImei && hasDate && hasPrice;
                             });
+                            console.log('✅ CSV cleaned:', cleanedData.length, 'valid rows');
                             setData(cleanedData);
-                            setLoading(false);
+
+                            Papa.parse('customer_data_clean.csv', {
+                                download: true,
+                                header: true,
+                                skipEmptyLines: true,
+                                complete: (customerResults) => {
+                                    console.log('✅ Customer CSV loaded:', customerResults.data.length, 'rows');
+                                    setCustomerData(customerResults.data);
+
+                                    setError({
+                                        title: 'Using Local CSV Files',
+                                        message: 'Live data sources unavailable. Displaying cached data from CSV files.',
+                                        details: 'This data may be outdated. Please check Snowflake and Google Sheets connectivity.',
+                                        timestamp: new Date().toISOString(),
+                                        source: 'csv',
+                                        isWarning: true
+                                    });
+
+                                    resolve();
+                                },
+                                error: (error) => {
+                                    console.error('❌ Customer CSV parse error:', error);
+                                    reject(error);
+                                }
+                            });
                         },
                         error: (error) => {
-                            console.error('Parse error:', error);
-                            setLoading(false);
+                            console.error('❌ CSV parse error:', error);
+                            reject(error);
                         }
                     });
+                });
+            };
 
-                    Papa.parse('customer_data_clean.csv', {
-                        download: true,
-                        header: true,
-                        skipEmptyLines: true,
-                        complete: (results) => {
-                            setCustomerData(results.data);
-                        },
-                        error: (error) => {
-                            console.error('Customer data parse error:', error);
-                        }
-                    });
-                };
-
-                fetchData();
-            }, []);
+            // Retry function
+            const handleRetry = async () => {
+                setRetrying(true);
+                await fetchData();
+                setRetrying(false);
+            };
 
             // Create customer lookup by INVNO
             const customerLookup = useMemo(() => {
@@ -1106,6 +1413,61 @@
                     </div>
 
                     <div className="dashboard-container">
+                        {/* Status Bar */}
+                        <div className="status-bar">
+                            <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                                <span style={{fontSize: '12px', color: '#8892b0'}}>Data Source:</span>
+                                {dataSource && (
+                                    <div className={`data-source-indicator ${dataSource}`}>
+                                        <div className="status-dot"></div>
+                                        <span>
+                                            {dataSource === 'snowflake' && 'Snowflake Database'}
+                                            {dataSource === 'sheets' && 'Google Sheets (Fallback)'}
+                                            {dataSource === 'csv' && 'Local CSV (Offline Mode)'}
+                                            {dataSource === 'error' && 'No Data Available'}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                            <div style={{fontSize: '12px', color: '#8892b0'}}>
+                                Last Updated: {new Date().toLocaleString()}
+                            </div>
+                        </div>
+
+                        {/* Error Banner */}
+                        {error && (
+                            <div className={`error-banner ${error.isWarning ? 'warning' : ''}`}>
+                                <div className="error-header">
+                                    <div className="error-title">
+                                        <span className="error-icon">{error.isWarning ? '⚠️' : '❌'}</span>
+                                        {error.title}
+                                    </div>
+                                    <button className="error-close" onClick={() => setError(null)}>×</button>
+                                </div>
+                                <div className="error-message">{error.message}</div>
+                                {error.details && (
+                                    <details>
+                                        <summary style={{cursor: 'pointer', color: '#8892b0', fontSize: '12px'}}>
+                                            Show technical details
+                                        </summary>
+                                        <div className="error-details">
+                                            <div><strong>Source:</strong> {error.source || 'unknown'}</div>
+                                            <div><strong>Timestamp:</strong> {error.timestamp}</div>
+                                            <div><strong>Details:</strong> {error.details}</div>
+                                        </div>
+                                    </details>
+                                )}
+                                <div className="error-actions">
+                                    <button
+                                        className="retry-button"
+                                        onClick={handleRetry}
+                                        disabled={retrying}
+                                    >
+                                        {retrying ? 'Retrying...' : '🔄 Retry Connection'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                         <div className="metrics-grid">
                             <div className="metric-card">
                                 <div className="metric-label">Total Units</div>
