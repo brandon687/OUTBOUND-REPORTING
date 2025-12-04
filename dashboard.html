@@ -472,16 +472,16 @@
             };
 
             useEffect(() => {
-                // Fetch data from Google Sheets API
+                // Fetch data from Snowflake API
                 const fetchData = async () => {
                     try {
-                        console.log('📊 Fetching live data from Google Sheets...');
+                        console.log('📊 Fetching live data from Snowflake...');
 
-                        // Fetch ALL IMEI data from Google Sheets
-                        const imeiResponse = await fetch('/api/sheets/dashboard-data');
+                        // Fetch ALL IMEI data from Snowflake (no row limits!)
+                        const imeiResponse = await fetch('/api/snowflake/dashboard-data');
 
-                        // Fetch customer data
-                        const customerResponse = await fetch('/api/sheets/customer-data');
+                        // Fetch customer data from Snowflake
+                        const customerResponse = await fetch('/api/snowflake/customer-data');
 
                         if (!imeiResponse.ok || !customerResponse.ok) {
                             throw new Error(`HTTP error! IMEI status: ${imeiResponse.status}, Customer status: ${customerResponse.status}`);
@@ -490,31 +490,32 @@
                         const imeiResult = await imeiResponse.json();
                         const customerResult = await customerResponse.json();
 
-                        if (imeiResult.error || customerResult.error) {
-                            console.error('❌ Google Sheets API error:', imeiResult.error || customerResult.error);
-                            console.log('💡 Hint:', imeiResult.hint || customerResult.hint);
-                            // Fall back to CSV if Google Sheets is not configured
+                        if (imeiResult.error || customerResult.error || !imeiResult.success || !customerResult.success) {
+                            console.error('❌ Snowflake API error:', imeiResult.error || customerResult.error);
+                            console.log('💡 Details:', imeiResult.details || customerResult.details);
+                            // Fall back to CSV if Snowflake is not configured
                             loadFromCSV();
                             return;
                         }
 
-                        console.log(`✓ Loaded ${imeiResult.rowCount} IMEI rows from Google Sheets`);
-                        console.log(`✓ Loaded ${customerResult.rowCount} customer rows from Google Sheets`);
+                        console.log(`✓ Loaded ${imeiResult.count} IMEI rows from Snowflake`);
+                        console.log(`✓ Loaded ${customerResult.count} customer rows from Snowflake`);
                         console.log('Sample IMEI data:', imeiResult.data.slice(0, 2));
                         console.log('Sample customer data:', customerResult.data.slice(0, 2));
 
                         // Transform the IMEI data to match expected format
+                        // Snowflake returns uppercase column names
                         const transformedData = imeiResult.data.map(row => ({
-                            imei: row.imei,
-                            model: row.model,
-                            capacity: row.capacity,
-                            grade: row.grade,
-                            price: parseFloat(row.total) || 0,
-                            customer: row.customer,
-                            updated_at: row.date,
-                            invoice: row.invoice,
-                            tracking: row.tracking,
-                            invtype: row.invtype
+                            imei: row.IMEI || row.imei,
+                            model: row.MODEL || row.model,
+                            capacity: row.CAPACITY || row.capacity,
+                            grade: row.GRADED || row.GRADE || row.grade,
+                            price: parseFloat(row.PRICE || row.price || row.total) || 0,
+                            customer: row.CUSTOMER || row.customer,
+                            updated_at: row.UPDATED_AT || row.updated_at || row.date,
+                            invoice: row.INVOICE_NO || row.invoice || row.INVNO,
+                            tracking: row.TRACKING || row.tracking,
+                            invtype: row.INVOICE_TYPE || row.invtype || row.INVTYPE
                         }));
 
                         console.log('✅ Transformed data sample:', transformedData.slice(0, 3));
