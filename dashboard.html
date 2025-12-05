@@ -786,20 +786,23 @@
 
                 const topCustomers = Object.entries(customerStats)
                     .map(([name, stats]) => {
-                        // Calculate average days between UNIQUE order dates
+                        // Get unique invoices (each invoice = one order)
+                        const uniqueInvoices = new Set(stats.orders.map(order => order.invno));
+                        const uniqueOrderCount = uniqueInvoices.size;
+
+                        // Get unique order dates for calculating time intervals
+                        const uniqueDateStrings = new Set(
+                            stats.orderDates.map(date => date.toISOString().split('T')[0])
+                        );
+                        const uniqueDates = Array.from(uniqueDateStrings)
+                            .map(dateStr => new Date(dateStr))
+                            .sort((a, b) => a - b);
+
+                        // Calculate average days between orders (using unique dates)
                         let avgDaysBetweenOrders = null;
                         let daysSinceLastOrder = null;
-                        let uniqueDates = [];
 
-                        if (stats.orderDates.length > 0) {
-                            // Get unique dates only (remove duplicates from same-day orders)
-                            const uniqueDateStrings = new Set(
-                                stats.orderDates.map(date => date.toISOString().split('T')[0])
-                            );
-                            uniqueDates = Array.from(uniqueDateStrings)
-                                .map(dateStr => new Date(dateStr))
-                                .sort((a, b) => a - b);
-
+                        if (uniqueDates.length > 0) {
                             // Calculate days since last order
                             const lastOrderDate = uniqueDates[uniqueDates.length - 1];
                             daysSinceLastOrder = Math.floor((new Date() - lastOrderDate) / (1000 * 60 * 60 * 24));
@@ -834,9 +837,9 @@
                             }
                         }
 
-                        // Calculate average order size
-                        const avgOrderSize = uniqueDates.length > 0 ? stats.count / uniqueDates.length : 0;
-                        const avgOrderValue = uniqueDates.length > 0 ? stats.revenue / uniqueDates.length : 0;
+                        // Calculate average order size (using unique invoice count)
+                        const avgOrderSize = uniqueOrderCount > 0 ? stats.count / uniqueOrderCount : 0;
+                        const avgOrderValue = uniqueOrderCount > 0 ? stats.revenue / uniqueOrderCount : 0;
 
                         return {
                             name,
@@ -845,7 +848,7 @@
                             modelCount: stats.models.size,
                             avgDaysBetweenOrders,
                             daysSinceLastOrder,
-                            uniqueOrderDates: uniqueDates.length,
+                            uniqueOrderDates: uniqueOrderCount,  // Now shows unique invoices, not unique dates
                             trend,
                             avgOrderSize: Math.round(avgOrderSize),
                             avgOrderValue: Math.round(avgOrderValue),
