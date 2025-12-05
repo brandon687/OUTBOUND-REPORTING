@@ -905,7 +905,7 @@
                     topCustomers,
                     lowPerformers
                 };
-            }, [filteredData, customerLookup, gradeView, normalizeGrade]);
+            }, [filteredData, customerData, gradeView]);
 
             const uniqueModels = useMemo(() => {
                 return [...new Set(data.map(row => row.model))].sort();
