@@ -462,8 +462,9 @@
             const normalizeGrade = (grade) => {
                 if (!grade) return 'Unknown';
                 const g = grade.toUpperCase().trim();
+                // Check AB GRADE first before A GRADE to avoid incorrect matching
+                if (g.includes('AB GRADE') || g === 'AB GRADE') return 'AB GRADE';
                 if (g.includes('A GRADE') || g === 'A GRADE') return 'A GRADE';
-                if (g.includes('AB GRADE') || g === 'AB GRADE') return 'A GRADE'; // Combine with A GRADE
                 if (g.includes('RAW')) return 'RAW';
                 if (g.includes('FALLOUT')) return 'FALLOUT';
                 if (g.includes('MIXED')) return 'MIXED';
@@ -1293,6 +1294,20 @@
                                         }}
                                     >A GRADE</button>
                                     <button
+                                        onClick={() => setGradeView('AB GRADE')}
+                                        style={{
+                                            padding: '8px 16px',
+                                            background: gradeView === 'AB GRADE' ? '#00ddff' : '#2a3555',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            color: gradeView === 'AB GRADE' ? '#0a0e27' : '#e0e6ed',
+                                            cursor: 'pointer',
+                                            fontSize: '12px',
+                                            fontWeight: '600',
+                                            transition: 'all 0.3s'
+                                        }}
+                                    >AB GRADE</button>
+                                    <button
                                         onClick={() => setGradeView('RAW')}
                                         style={{
                                             padding: '8px 16px',
@@ -1380,6 +1395,7 @@
                                                                     marginRight: '8px',
                                                                     padding: '2px 6px',
                                                                     background: grade === 'A GRADE' ? '#00ff8822' :
+                                                                               grade === 'AB GRADE' ? '#00ddff22' :
                                                                                grade === 'RAW' ? '#8892b022' :
                                                                                grade === 'MIXED' ? '#f7931e22' :
                                                                                grade === 'FALLOUT' ? '#ff6b6b22' :
