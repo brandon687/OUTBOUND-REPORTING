@@ -678,15 +678,20 @@
                 // Get top models for selected grade view
                 let topModels = [];
                 if (gradeView === 'all') {
-                    // Aggregate all grades
+                    // Aggregate all grades AND keep breakdown
                     const allModels = {};
-                    Object.values(modelStatsByGrade).forEach(gradeStats => {
+                    Object.entries(modelStatsByGrade).forEach(([grade, gradeStats]) => {
                         Object.entries(gradeStats).forEach(([model, stats]) => {
                             if (!allModels[model]) {
-                                allModels[model] = { count: 0, revenue: 0 };
+                                allModels[model] = {
+                                    count: 0,
+                                    revenue: 0,
+                                    gradeBreakdown: {} // Track count by grade
+                                };
                             }
                             allModels[model].count += stats.count;
                             allModels[model].revenue += stats.revenue;
+                            allModels[model].gradeBreakdown[grade] = stats.count;
                         });
                     });
                     topModels = Object.entries(allModels)
@@ -1353,6 +1358,7 @@
                                         <th>Units Sold</th>
                                         <th>Total Revenue</th>
                                         <th>Avg Price</th>
+                                        {gradeView === 'all' && <th>Grade Breakdown</th>}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1364,11 +1370,33 @@
                                                 <td>{stats.count.toLocaleString()}</td>
                                                 <td>${stats.revenue.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
                                                 <td>${(stats.revenue / stats.count).toFixed(2)}</td>
+                                                {gradeView === 'all' && stats.gradeBreakdown && (
+                                                    <td style={{fontSize: '11px', lineHeight: '1.6'}}>
+                                                        {Object.entries(stats.gradeBreakdown)
+                                                            .sort((a, b) => b[1] - a[1])
+                                                            .map(([grade, count]) => (
+                                                                <div key={grade} style={{
+                                                                    display: 'inline-block',
+                                                                    marginRight: '8px',
+                                                                    padding: '2px 6px',
+                                                                    background: grade === 'A GRADE' ? '#00ff8822' :
+                                                                               grade === 'RAW' ? '#8892b022' :
+                                                                               grade === 'MIXED' ? '#f7931e22' :
+                                                                               grade === 'FALLOUT' ? '#ff6b6b22' :
+                                                                               grade === 'LOCKED' ? '#6dd5ed22' : '#2a355522',
+                                                                    borderRadius: '4px',
+                                                                    whiteSpace: 'nowrap'
+                                                                }}>
+                                                                    <strong>{count}</strong> {grade}
+                                                                </div>
+                                                            ))}
+                                                    </td>
+                                                )}
                                             </tr>
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan="5" style={{textAlign: 'center', color: '#8892b0'}}>
+                                            <td colSpan={gradeView === 'all' ? '6' : '5'} style={{textAlign: 'center', color: '#8892b0'}}>
                                                 No data available for {gradeView}
                                             </td>
                                         </tr>
