@@ -1833,38 +1833,60 @@
                                                     Shows purchasing activity over time to identify strong vs slow periods
                                                 </div>
                                                 <div style={{overflowX: 'auto'}}>
-                                                    <div style={{display: 'flex', gap: '4px', minWidth: '800px', alignItems: 'flex-end', height: '200px'}}>
+                                                    <div style={{display: 'flex', gap: '8px', minWidth: '800px', alignItems: 'flex-end', height: '280px', padding: '20px 0'}}>
                                                         {Object.entries(selectedCustomer.fullStats.weeklyData)
                                                             .sort((a, b) => a[0].localeCompare(b[0]))
                                                             .slice(-20)
                                                             .map(([week, data]) => {
                                                                 const maxRevenue = Math.max(...Object.values(selectedCustomer.fullStats.weeklyData).map(d => d.revenue));
-                                                                const height = (data.revenue / maxRevenue) * 100;
+                                                                const height = Math.max((data.revenue / maxRevenue) * 100, 5); // Minimum 5% height for visibility
+                                                                const barColor = height > 70 ? '#00ff88' : height > 40 ? '#f7931e' : '#8892b0';
                                                                 return (
                                                                     <div key={week} style={{
                                                                         flex: 1,
                                                                         display: 'flex',
                                                                         flexDirection: 'column',
                                                                         alignItems: 'center',
-                                                                        gap: '8px'
+                                                                        gap: '4px',
+                                                                        minWidth: '50px'
                                                                     }}>
+                                                                        {/* Revenue label above bar */}
+                                                                        <div style={{
+                                                                            fontSize: '10px',
+                                                                            fontWeight: '600',
+                                                                            color: barColor,
+                                                                            marginBottom: '4px',
+                                                                            whiteSpace: 'nowrap'
+                                                                        }}>
+                                                                            ${data.revenue >= 1000 ?
+                                                                                `${(data.revenue / 1000).toFixed(1)}k` :
+                                                                                data.revenue.toFixed(0)}
+                                                                        </div>
+                                                                        {/* Bar */}
                                                                         <div style={{
                                                                             width: '100%',
                                                                             height: `${height}%`,
-                                                                            background: height > 70 ? '#00ff88' : height > 40 ? '#f7931e' : '#8892b0',
+                                                                            background: barColor,
                                                                             borderRadius: '4px 4px 0 0',
-                                                                            minHeight: '10px',
+                                                                            minHeight: '20px',
                                                                             position: 'relative',
-                                                                            cursor: 'pointer'
-                                                                        }} title={`${week}: $${data.revenue.toLocaleString()}`}>
+                                                                            cursor: 'pointer',
+                                                                            border: `1px solid ${barColor}`,
+                                                                            boxShadow: `0 0 10px ${barColor}40`
+                                                                        }} title={`${week}: $${data.revenue.toLocaleString()} (${data.units} units)`}>
                                                                         </div>
+                                                                        {/* Week label */}
                                                                         <div style={{
-                                                                            fontSize: '10px',
-                                                                            color: '#8892b0',
-                                                                            transform: 'rotate(-45deg)',
-                                                                            whiteSpace: 'nowrap'
+                                                                            fontSize: '11px',
+                                                                            fontWeight: '600',
+                                                                            color: '#e0e6ed',
+                                                                            marginTop: '4px',
+                                                                            whiteSpace: 'nowrap',
+                                                                            background: '#0f1423',
+                                                                            padding: '2px 6px',
+                                                                            borderRadius: '3px'
                                                                         }}>
-                                                                            {week.split('-')[1]}
+                                                                            {week}
                                                                         </div>
                                                                     </div>
                                                                 );
