@@ -736,7 +736,10 @@
                             const yearStart = new Date(now.getFullYear(), 0, 1);
                             return rowDate >= yearStart;
                         case 'custom':
-                            const rowDateStr = row.QBO_TRANSACTION_DATE.split(' ')[0] || row.QBO_TRANSACTION_DATE;
+                            if (!row.QBO_TRANSACTION_DATE) return true;
+                            const rowDateStr = row.QBO_TRANSACTION_DATE.includes(' ')
+                                ? row.QBO_TRANSACTION_DATE.split(' ')[0]
+                                : row.QBO_TRANSACTION_DATE;
                             if (filters.startDate && rowDateStr < filters.startDate) return false;
                             if (filters.endDate && rowDateStr > filters.endDate) return false;
                             return true;
