@@ -592,22 +592,37 @@
                     if (filters.dateRange !== 'all' && row.updated_at) {
                         const rowDate = new Date(row.updated_at);
                         const now = new Date();
+                        now.setHours(0, 0, 0, 0); // Start of today
 
                         switch(filters.dateRange) {
                             case 'today':
                                 if (rowDate.toDateString() !== now.toDateString()) return false;
                                 break;
-                            case 'week':
-                                const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-                                if (rowDate < weekAgo) return false;
+                            case 'yesterday':
+                                const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                                if (rowDate.toDateString() !== yesterday.toDateString()) return false;
                                 break;
-                            case 'month':
-                                const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-                                if (rowDate < monthAgo) return false;
+                            case '7days':
+                                const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                                if (rowDate < sevenDaysAgo) return false;
+                                break;
+                            case '30days':
+                                const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                                if (rowDate < thirtyDaysAgo) return false;
+                                break;
+                            case '90days':
+                                const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+                                if (rowDate < ninetyDaysAgo) return false;
+                                break;
+                            case 'ytd':
+                                const yearStart = new Date(now.getFullYear(), 0, 1); // January 1st of current year
+                                if (rowDate < yearStart) return false;
                                 break;
                             case 'custom':
-                                if (filters.startDate && rowDate < new Date(filters.startDate)) return false;
-                                if (filters.endDate && rowDate > new Date(filters.endDate)) return false;
+                                // Compare only the date portion (YYYY-MM-DD) to handle same-day ranges correctly
+                                const rowDateStr = row.updated_at.split(' ')[0]; // Get YYYY-MM-DD
+                                if (filters.startDate && rowDateStr < filters.startDate) return false;
+                                if (filters.endDate && rowDateStr > filters.endDate) return false;
                                 break;
                         }
                     }
@@ -1150,8 +1165,11 @@
                                     >
                                         <option value="all">All Time</option>
                                         <option value="today">Today</option>
-                                        <option value="week">Last 7 Days</option>
-                                        <option value="month">Last 30 Days</option>
+                                        <option value="yesterday">Yesterday</option>
+                                        <option value="7days">Last 7 Days</option>
+                                        <option value="30days">Last 30 Days</option>
+                                        <option value="90days">Last 90 Days</option>
+                                        <option value="ytd">Year to Date</option>
                                         <option value="custom">Custom Range</option>
                                     </select>
                                 </div>
